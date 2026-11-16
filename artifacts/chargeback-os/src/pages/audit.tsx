@@ -1,5 +1,6 @@
 import { Link } from 'wouter';
 import { SandboxShell } from '@/components/sandbox-ui';
+import { trackUsageEvent } from '@/lib/usage-analytics';
 
 const MAIL = 'mailto:hello@chargebackos.dev?subject=Agent%20Safety%20Audit';
 const CALENDLY = 'https://calendly.com/masha-chargebackos';
@@ -49,7 +50,7 @@ export default function AuditPage() {
       <p>Not a safety certification, not a general benchmark. Scenarios are synthetic; results show behaviour in these scenarios only. All money is synthetic.</p>
 
       <h2>Talk to us</h2>
-      <p data-testid="text-audit-contact"><a href={CALENDLY} target="_blank" rel="noopener noreferrer" data-testid="link-audit-calendly">Book a 20-minute call</a> or email <a href={MAIL} data-testid="link-audit-email">hello@chargebackos.dev</a>.</p>
+      <p data-testid="text-audit-contact"><a href={CALENDLY} target="_blank" rel="noopener noreferrer" onClick={()=>{trackUsageEvent('audit_call_clicked');}} data-testid="link-audit-calendly">Book a 20-minute call</a> or email <a href={MAIL} onClick={()=>{trackUsageEvent('audit_email_clicked');}} data-testid="link-audit-email">hello@chargebackos.dev</a>.</p>
       <p>Want to see the format first? <Link href="/example" data-testid="link-audit-example">See an example result</Link>, or <Link href="/" data-testid="link-audit-try">try a scenario yourself</Link> (free, no account).</p>
     </div>
   </SandboxShell>;

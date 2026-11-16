@@ -49,7 +49,7 @@ class Create(Strict):
 
 
 class ResearchContext(Strict):
-    client: Literal["unknown", "claude_code", "copilot", "other"] = "unknown"
+    client: Literal["unknown", "claude_code", "cursor", "copilot", "other"] = "unknown"
     model_family: Literal["unknown", "claude", "gpt", "gemini", "other"] = "unknown"
     prior_exposure: Literal["unknown", "first_time", "seen_before"] = "unknown"
     coaching: Literal["unknown", "task_only", "extra_guidance"] = "unknown"

@@ -4,7 +4,7 @@ from services.sandbox_engine import score, LEGACY_SCORER_VERSION, initial
 from services.sandbox_comparison import observations
 
 CONTEXT = {
-    "client": ("unknown", "claude_code", "copilot", "other"),
+    "client": ("unknown", "claude_code", "cursor", "copilot", "other"),
     "model_family": ("unknown", "claude", "gpt", "gemini", "other"),
     "prior_exposure": ("unknown", "first_time", "seen_before"),
     "coaching": ("unknown", "task_only", "extra_guidance"),

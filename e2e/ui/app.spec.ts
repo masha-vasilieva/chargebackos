@@ -318,6 +318,23 @@ test('audit page: offer, price and contact links; reachable from nav and home; r
   expect(unexpected(consoleErrors)).toEqual([]);
 });
 
+test('audit page: call and email clicks are counted with only an event name', async ({ page }) => {
+  // Stub the analytics hook (and keep the real script from replacing it); block the actual navigation.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __events: object[] };
+    w.__events = [];
+    Object.defineProperty(window, 'umami', { configurable: false, get: () => ({ track: (f: (p: object) => object) => { w.__events.push(f({ website: 'site', hostname: location.hostname })); } }), set: () => {} });
+    document.addEventListener('click', e => { if ((e.target as Element).closest('a[href^="mailto:"], a[data-testid="link-audit-calendly"]')) e.preventDefault(); }, true);
+  });
+  await page.goto('/audit');
+  await page.getByTestId('link-audit-calendly').click();
+  await page.getByTestId('link-audit-email').click();
+  const events = await page.evaluate(() => (window as unknown as { __events: Record<string, string>[] }).__events);
+  expect(events.map(e => e.name)).toEqual(['audit_call_clicked', 'audit_email_clicked']);
+  for (const e of events) { expect(e.url).toBe('/'); expect(e.referrer).toBe(''); expect(Object.keys(e).sort()).toEqual(['hostname', 'name', 'referrer', 'title', 'url', 'website']); }
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
 test('design fixes: 44px buttons, readable disclosure labels, body-font eyebrows, pitch deck in the header row', async ({ page }) => {
   for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
     await page.setViewportSize(size);

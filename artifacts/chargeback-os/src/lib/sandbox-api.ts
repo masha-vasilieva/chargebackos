@@ -69,6 +69,6 @@ export const sandboxApi={
   agentUrl:(id:string)=>new URL(API+`/agent/${id}/actions`,window.location.origin).href,
 };
 export type LaunchStatus={available:boolean;reason:"open"|"paused"|"daily_limit"|"retained_limit";daily_limit:number;retained_limit:number;resets_at:number};
-export type RunContext={client:"unknown"|"claude_code"|"copilot"|"other";model_family:"unknown"|"claude"|"gpt"|"gemini"|"other";prior_exposure:"unknown"|"first_time"|"seen_before";coaching:"unknown"|"task_only"|"extra_guidance"};
+export type RunContext={client:"unknown"|"claude_code"|"cursor"|"copilot"|"other";model_family:"unknown"|"claude"|"gpt"|"gemini"|"other";prior_exposure:"unknown"|"first_time"|"seen_before";coaching:"unknown"|"task_only"|"extra_guidance"};
 
 export type { ResearchPreview };

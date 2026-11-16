@@ -1,4 +1,5 @@
-const ALLOWED_EVENTS = new Set(['setup_started']);
+// Fixed list of named events. audit_* count clicks on the /audit contact links (no identifiers).
+const ALLOWED_EVENTS = new Set(['setup_started', 'audit_call_clicked', 'audit_email_clicked']);
 type AnalyticsPayload = Record<string, unknown>;
 declare global {
   interface Window {

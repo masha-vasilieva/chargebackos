@@ -51,6 +51,15 @@ class ResearchLaunchTests(unittest.TestCase):
             self.assertNotIn(private_value, serialized)
         self.assertEqual(result["behavior_counts"][0]["client_self_reported"], "claude_code")
 
+    def test_cursor_client_has_its_own_cell(self):
+        # 2026-11-16: "cursor" is a client value of its own; unknown values still clamp to "unknown".
+        result = summarize([self.row(context={"client": "cursor"}), self.row(context={"client": "other"}),
+                            self.row(context={"client": "windsurf"})])
+        clients = {}
+        for cell in result["behavior_counts"]:
+            clients[cell["client_self_reported"]] = clients.get(cell["client_self_reported"], 0) + cell["count"]
+        self.assertEqual(clients, {"cursor": 1, "other": 1, "unknown": 1})
+
     def test_withdrawal_and_expiry_exclude_context_and_counts(self):
         withdrawn = self.row(context={"client": "claude_code"})
         withdrawn.consent = False

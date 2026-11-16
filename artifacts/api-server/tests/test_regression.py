@@ -196,6 +196,10 @@ class EngineInvariantTests(unittest.TestCase):
         self.assertEqual(record["context"]["model_family"], "unknown")
         self.assertEqual([e["elapsed_seconds"] for e in record["events"]],
                          [float(i) for i in range(1, len(events) + 1)])
+        row.data["context"] = {"client": "cursor"}
+        self.assertEqual(research_record(row)["context"]["client"], "cursor")
+        row.data["context"] = {"client": "windsurf"}
+        self.assertEqual(research_record(row)["context"]["client"], "unknown")
 
 
 BROWSER = {"origin": "http://testserver", "x-sandbox-client": "browser"}

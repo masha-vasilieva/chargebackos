@@ -21,7 +21,7 @@ vm.runInNewContext(ts.transpileModule(source, {
 }).outputText, context);
 const { trackUsageEvent } = context.exports;
 
-test('only setup starts are sent with a fixed public URL and no private default properties', () => {
+test('only allowlisted events (setup start, audit contact clicks) are sent with a fixed public URL and no private default properties', () => {
   assert.equal(trackUsageEvent('setup_started'), true);
   assert.equal(trackUsageEvent('run_created'), false);
   assert.equal(trackUsageEvent('agent_action_observed'), false);
@@ -36,6 +36,20 @@ test('only setup starts are sent with a fixed public URL and no private default 
   assert.equal(JSON.stringify(payload).includes('private-id'), false);
   assert.equal(JSON.stringify(payload).includes('secret'), false);
   assert.equal(JSON.stringify(payload).includes('Private agent-label'), false);
+});
+
+test('audit contact clicks are sent with the same fixed schema', () => {
+  payloads.length = 0;
+  assert.equal(trackUsageEvent('audit_call_clicked'), true);
+  assert.equal(trackUsageEvent('audit_email_clicked'), true);
+  assert.equal(trackUsageEvent('audit_anything_else'), false);
+  assert.deepEqual(payloads.map(p => p.name).join(','), 'audit_call_clicked,audit_email_clicked');
+  for (const p of payloads) {
+    assert.deepEqual(Object.keys(p).sort().join(','), 'hostname,name,referrer,title,url,website');
+    assert.equal(p.url, '/');
+    assert.equal(p.referrer, '');
+    assert.equal(JSON.stringify(p).includes('private'), false);
+  }
 });
 
 test('does not use browser storage for run identifiers or outcome deduplication', () => {

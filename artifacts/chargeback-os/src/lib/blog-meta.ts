@@ -1,6 +1,8 @@
 // Blog posts are Markdown files in src/content/blog/. Each starts with a small
 // header block between "---" lines: title, date (YYYY-MM-DD), summary.
 // The file name (without .md) is the address: /blog/<file name>.
+// A new post also needs a link-preview rewrite in .replit-artifact/artifact.toml
+// ("/blog/<name>" -> "/blog-post-<name>.html"); tests/seo-pages.test.mjs checks it.
 export type PostMeta = { slug: string; title: string; date: string; summary: string };
 
 export function parsePost(slug: string, raw: string): (PostMeta & { body: string }) | null {

@@ -18,7 +18,7 @@ Contact for anything about privacy: **hello@chargebackos.dev**. Postal address: 
 | **Your runs**: scenario, your agent's tool calls and the simulator's replies, score, and any labels or notes you type | To run the test and show you the report | Providing the service (Art. 6(1)(b)) |
 | **Your IP address**, converted to a one-way code (hash) | To limit how many runs and actions one connection can make and to prevent abuse | Our legitimate interest in keeping the service secure and available (Art. 6(1)(f)) |
 | **Agent sign-in records**: the name and return address your agent's app gives, and short-lived access codes | So your agent can connect to the one run you approved | Providing the service (Art. 6(1)(b)) |
-| **Page views**, counted by our hosting provider's analytics | To see how many people visit and which pages they use | Legitimate interest (Art. 6(1)(f)); no cookies and no cross-site tracking |
+| **Page views and a few named button clicks** (for example, clicks on the audit page's "Book a call" and email links), counted by our hosting provider's analytics | To see how many people visit, which pages they use and whether the audit offer gets any interest | Legitimate interest (Art. 6(1)(f)); no cookies, no cross-site tracking, and the count records only that a click happened, not who clicked or anything you typed |
 | **A run explanation**, only if you ask for one | To write a plain-English summary of your run | Providing the service (Art. 6(1)(b)) |
 | **Research record**, only if you opt in (section 3) | To study how AI agents handle deceptive sellers | Your consent (Art. 6(1)(a)) |
 | **Emails you send us** | To reply to you | Legitimate interest in supporting users (Art. 6(1)(f)) |
@@ -50,6 +50,8 @@ We use only cookies the service needs to work, so we do not show a cookie banner
 
 Our hosting provider's analytics script sets no cookies. Losing or clearing the owner cookie means losing access to your runs; there is no account recovery.
 
+The 'Book a call' link opens Calendly, a separate service with its own privacy policy; we do not share anything with it until you click through and book.
+
 ## 5. Who else handles your data
 
 These providers process data on our behalf:
@@ -77,7 +79,7 @@ Some of these providers are based in the United States. Where data is transferre
 | Server logs | Up to 30 days, as set by our hosting provider |
 | Emails | Up to 12 months after the conversation ends |
 
-Deleting a run removes it from our live database immediately. A copy may remain in our hosting provider's backups for a limited period set by the provider; we cannot delete from those backups earlier.
+Deleting a run removes it from our live database immediately. A copy may remain in our hosting provider's backups for up to 7 days, after which it is overwritten; we cannot delete from those backups earlier.
 
 ## 7. Your rights
 

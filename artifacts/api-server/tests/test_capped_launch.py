@@ -219,6 +219,12 @@ class LaunchTests(IsolatedSandboxTest):
         self.assertNotIn("claude_code", str(response.body))
         self.assertEqual(self.create(context={"client": "https://secret.example"}).status, 422)
 
+    def test_cursor_is_a_client_option(self):
+        # 2026-11-16: Cursor runs used to be recorded as "other".
+        created = self.create(context={"client": "cursor"})
+        self.assertEqual(created.status, 200, created.text)
+        self.assertEqual(created.body["run"]["context"]["client"], "cursor")
+
     def test_record_size_limit_rolls_back_action(self):
         created = self.create().body
         run = created["run"]["id"]

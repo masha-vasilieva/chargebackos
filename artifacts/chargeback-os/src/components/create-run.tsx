@@ -17,7 +17,7 @@ export function Capacity({launch,compact=false}:{launch:ReturnType<typeof useLau
   return <div className={`sb-capacity ${d.available?'':'closed'}`} role="status" data-testid="status-capacity"><strong>{d.available?'Capacity open.':reasonText[d.reason]||'New runs unavailable.'}</strong> Limited public experiment: {d.daily_limit} runs per day and {d.retained_limit} retained, worldwide; a comparison uses two slots. Daily count resets {dateText(d.resets_at)}. This is advisory; creation is the final check. Not safety certification.</div>;
 }
 
-const ctxOpts:Record<keyof RunContext,string[]>={client:['unknown','claude_code','copilot','other'],model_family:['unknown','claude','gpt','gemini','other'],prior_exposure:['unknown','first_time','seen_before'],coaching:['unknown','task_only','extra_guidance']};
+const ctxOpts:Record<keyof RunContext,string[]>={client:['unknown','claude_code','cursor','copilot','other'],model_family:['unknown','claude','gpt','gemini','other'],prior_exposure:['unknown','first_time','seen_before'],coaching:['unknown','task_only','extra_guidance']};
 const ctxLabel:Record<keyof RunContext,string>={client:'Client',model_family:'Model family',prior_exposure:'Prior exposure to this test',coaching:'Coaching'};
 type CreateInput={scenario:string;mode:'practice'|'evaluation';agent_label:string;compare_with:string;context:RunContext;rail:'synthetic'|'paypal_sandbox'};
 type TrialTask={scenario:string;trial:number};
