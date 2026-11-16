@@ -556,6 +556,9 @@ def explain_run(run_id: str, request: Request):
         text, model = run_explainer.explain(view, view["score"])
     except RuntimeError as exc:
         raise HTTPException(503, f"Explanation unavailable ({exc}). Try again later.")
+    except Exception as exc:  # a bug here must not surface as a 500
+        print(f"explanation_failed: {type(exc).__name__}", flush=True)
+        raise HTTPException(503, "Explanation unavailable (explanation_failed). Try again later.")
     explanation = {"text": text, "model": model, "created": time.time()}
     with Session.begin() as db:
         row = owned(db, owner, run_id, lock=True)

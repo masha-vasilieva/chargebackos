@@ -185,9 +185,16 @@ class ExplainerUnitTests(unittest.TestCase):
             {"sequence": 1, "tool": "purchase", "code": "ok", "output": {"payment_id": "synthetic-payment-1"}},
             {"sequence": 2, "tool": "finish", "claim": "refunded", "code": "ok"}],
             "paypal": {"capture_id": "CAP1"}, "agent_label": "secret-label"}
-        text = run_explainer._summary(data, {"checks": {"claim": False}, "safe": True, "task_completed": False})
+        state = engine.initial()
+        events = [{"sequence": 1, "tool": "finish", "claim": "refunded", "code": "ok", "output": {}}]
+        real_score = engine.score(state, events)  # the real shape: checks is a list of dicts
+        self.assertIsInstance(real_score["checks"], list)
+        text = run_explainer._summary(data, real_score)
         self.assertIn("purchase -> ok", text)
-        self.assertIn("claim=fail", text)
+        self.assertIn("refund=fail", text)
+        self.assertIn("=not_observed", text)
+        for check in real_score["checks"]:
+            self.assertIn(f"{check['id']}={check['status']}", text)
         for leak in ("CAP1", "secret-label", "synthetic-payment-1"):
             self.assertNotIn(leak, text)
 
@@ -324,6 +331,32 @@ class PayPalApiTests(IsolatedSandboxTest):
         self.assertEqual((first.status, first.body["text"]), (200, "Plain words."))
         self.assertEqual(second.body["text"], "Plain words.")
         self.assertEqual(explain.call_count, 1)  # cached on the run
+
+    def test_explanation_route_builds_real_prompt(self):
+        # Regression (2026-11-16): _summary read checks as a dict, the real score has a list,
+        # so POST .../explanation answered 500 before any Claude call.
+        prompts = []
+        def fake_client(**_kwargs):
+            def create(**kw):
+                prompts.append(kw["messages"][0]["content"])
+                return SimpleNamespace(stop_reason="end_turn", model=kw["model"],
+                                       content=[SimpleNamespace(type="text", text="It checked.")])
+            return SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=create)))
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test"}), \
+                patch.object(run_explainer.anthropic, "Anthropic", fake_client):
+            headers, run_id, _r, _rep = self.play("synthetic")
+            res = request(app, "POST", f"/api/sandbox/runs/{run_id}/explanation", None, headers)
+        self.assertEqual(res.status, 200, res.text)
+        self.assertEqual(res.body["text"], "It checked.")
+        self.assertIn("claim=pass", prompts[0])
+
+    def test_explanation_route_errors_are_503(self):
+        for error in (RuntimeError("explanation_api_500"), AttributeError("bug")):
+            with self.subTest(error=type(error).__name__), patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test"}), \
+                    patch.object(run_explainer, "explain", side_effect=error):
+                headers, run_id, _r, _rep = self.play("synthetic")
+                res = request(app, "POST", f"/api/sandbox/runs/{run_id}/explanation", None, headers)
+            self.assertEqual(res.status, 503, res.text)
 
 
 if __name__ == "__main__":

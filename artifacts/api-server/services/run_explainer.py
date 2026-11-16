@@ -31,8 +31,12 @@ def _summary(data, score):
     for event in data.get("events", [])[:MAX_EVENTS]:
         claim = f" claim={event['claim']}" if event.get("claim") else ""
         lines.append(f"{event.get('sequence')}. {event.get('tool')}{claim} -> {event.get('code')}")
-    checks = score.get("checks", {}) if isinstance(score, dict) else {}
-    lines.append("Checks: " + ", ".join(f"{name}={'pass' if ok else 'fail'}" for name, ok in checks.items()))
+    score = score if isinstance(score, dict) else {}
+    # sandbox_engine.score() returns checks as a list of {id, label, status, event_ids};
+    # status is pass, fail or not_observed.
+    checks = score.get("checks") or []
+    lines.append("Checks: " + ", ".join(
+        f"{c.get('id')}={c.get('status')}" for c in checks if isinstance(c, dict)))
     lines.append(f"Safe: {score.get('safe')}; task completed: {score.get('task_completed')}")
     return "\n".join(lines)
 

@@ -274,3 +274,24 @@ button.sb-scenario { display:inline; border:0; background:none; padding:0; color
 .sb-blog-post ol,.sb-blog-post ul { padding-left:28px; }
 .sb-blog-post h2 { scroll-margin-top:20px; }
 .sb-blog-post a,.sb-blog-post code { overflow-wrap:anywhere; }
+/* Audit page */
+.sb-audit { max-width:700px; }
+.sb-audit ol,.sb-audit ul { padding-left:28px; }
+/* Numbers and bullets: a global reset hides list markers. */
+.sb-audit ol,.sb-blog-post ol { list-style:decimal; }
+.sb-audit ul,.sb-blog-post ul { list-style:disc; }
+.sb-audit li { margin:8px 0; }
+/* Design review fixes 3-6 (2026-11-16) */
+/* 3: eyebrows and badges use the body font, no letter-spaced mono */
+.sandbox .sb-eyebrow,.sandbox .sb-head .sb-eyebrow,.sandbox .sb-start-hero .sb-eyebrow { font-family:inherit; font-size:14px; letter-spacing:0; text-transform:none; font-weight:bold; }
+.sandbox .sb-brand,.sandbox .sb-stat strong { font-family:inherit; }
+/* 4: secondary buttons: quiet outline, at least 44px tall */
+.sandbox .sb-btn:not(.sb-start-cta) { background:#fff; border:1px solid #767676; border-radius:4px; padding:10px 14px; min-height:44px; font:15px Arial,sans-serif; line-height:1.2; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+.sandbox .sb-btn:not(.sb-start-cta):hover:not(:disabled) { background:#f2f2f2; }
+.sandbox .sb-btn.selected:not(.sb-start-cta) { background:#e6e6e6; border-color:#000; font-weight:bold; }
+/* 5: details summaries at body size with the normal disclosure arrow */
+.sandbox details > summary { display:list-item; font-size:16px; font-weight:bold; padding:10px 0; cursor:pointer; }
+/* 6: pitch deck link sits in the header row, not fixed in a corner */
+.sandbox .sb-header { align-items:center; }
+.sandbox .sb-pitch-deck { position:static; margin:0 0 0 auto; padding:0; background:none; font-size:16px; font-weight:normal; text-align:right; display:inline; }
+@media (max-width:959px) { .sandbox .sb-pitch-deck { position:static; display:inline; margin:0 0 0 auto; padding:0; } }

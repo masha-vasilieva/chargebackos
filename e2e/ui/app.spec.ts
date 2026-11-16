@@ -166,7 +166,7 @@ test('search files: robots.txt points to a valid sitemap of the public pages', a
   expect(sitemap.headers()['content-type']).toContain('xml');
   const xml = await sitemap.text();
   expect(xml).toContain('<urlset');
-  for (const page of ['/', '/example', '/guide', '/privacy', '/blog']) expect(xml).toContain(`<loc>https://chargebackos.dev${page}</loc>`);
+  for (const page of ['/', '/example', '/guide', '/privacy', '/blog', '/audit']) expect(xml).toContain(`<loc>https://chargebackos.dev${page}</loc>`);
   expect(xml).not.toContain('/runs/');
 });
 
@@ -242,12 +242,77 @@ test('footer credit: "Made by" with a LinkedIn link on every page, readable at d
       const link = page.getByTestId('link-footer-linkedin');
       await expect(link).toHaveAttribute('href', 'https://www.linkedin.com/in/mashavsl');
       await expect(link).toHaveAttribute('rel', /noopener/);
+      // Footer links are separated, not run together.
+      await expect(page.locator('footer.sb-footer')).toContainText('LinkedIn · Privacy Policy · Privacy, retention');
+      const privacy = (await page.getByTestId('link-footer-privacy-policy').boundingBox())!;
       const box = (await link.boundingBox())!;
+      if (Math.abs(privacy.y - box.y) < 5) expect(privacy.x - (box.x + box.width)).toBeGreaterThan(8);
       expect(box.width).toBeGreaterThan(30);
       expect(box.x + box.width).toBeLessThanOrEqual(size.width);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(1);
     }
+  }
+});
+
+test('audit page: offer, price and contact links; reachable from nav and home; reads well at desktop and phone width', async ({ page }) => {
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/');
+    await expect(page.getByTestId('link-home-audit')).toHaveAttribute('href', '/audit');
+    await expect(page.getByTestId('link-home-blog')).toHaveAttribute('href', /^\/blog\//);
+    await page.getByTestId('link-audit').click();
+    await expect(page).toHaveURL(/\/audit$/);
+    const audit = page.getByTestId('page-audit');
+    await expect(audit.getByRole('heading', { level: 1, name: 'Agent Safety Audit' })).toBeVisible();
+    await expect(audit.locator('ol > li')).toHaveCount(4);
+    // Free vs paid is explained, and the paid-only items come first.
+    await expect(page.getByTestId('text-audit-free-vs-paid')).toContainText('free to run yourself');
+    await expect(page.getByTestId('link-audit-free')).toHaveAttribute('href', '/');
+    await expect(audit.locator('ol > li').first()).toContainText('custom scenarios');
+    // Lists show numbers and bullets, with room for the marker inside the page.
+    expect(await audit.locator('ol').evaluate(el => getComputedStyle(el).listStyleType)).toBe('decimal');
+    expect(await audit.locator('ul').first().evaluate(el => getComputedStyle(el).listStyleType)).toBe('disc');
+    const li = (await audit.locator('ol > li').first().boundingBox())!;
+    const pageX = (await audit.boundingBox())!.x;
+    expect(li.x - pageX).toBeGreaterThanOrEqual(16);
+    await expect(audit).toContainText('$1,500');
+    await expect(audit).toContainText('Not a safety certification');
+    await expect(page.getByTestId('link-audit-calendly')).toHaveAttribute('href', 'https://calendly.com/masha-chargebackos');
+    await expect(page.getByTestId('link-audit-email')).toHaveAttribute('href', /^mailto:hello@chargebackos\.dev/);
+    const box = (await audit.boundingBox())!;
+    expect(box.width).toBeLessThanOrEqual(Math.min(720, size.width));
+    expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  }
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('design fixes: 44px buttons, readable disclosure labels, body-font eyebrows, pitch deck in the header row', async ({ page }) => {
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    await page.goto('/guide');
+    // Secondary buttons (copy etc.) are at least 44px tall and not oversized.
+    const heights = await page.locator('.sb-btn:visible:not(.sb-start-cta)').evaluateAll(els => els.map(e => e.getBoundingClientRect().height));
+    expect(heights.length).toBeGreaterThan(0);
+    for (const h of heights) { expect(h).toBeGreaterThanOrEqual(43.5); expect(h).toBeLessThan(90); }
+    // Disclosure labels are body size and tall enough to tap.
+    const summaries = await page.locator('details > summary:visible').evaluateAll(els => els.map(e => ({ size: parseFloat(getComputedStyle(e).fontSize), h: e.getBoundingClientRect().height })));
+    expect(summaries.length).toBeGreaterThan(0);
+    for (const s of summaries) { expect(s.size).toBeGreaterThanOrEqual(16); expect(s.h).toBeGreaterThanOrEqual(36); }
+    // Eyebrows are not letter-spaced monospace.
+    const eyebrowFonts = await page.locator('.sb-eyebrow').evaluateAll(els => els.map(e => getComputedStyle(e).fontFamily));
+    for (const f of eyebrowFonts) expect(f).not.toMatch(/Space Mono|monospace/i);
+    // Pitch deck link sits in the header row, inside the screen, not fixed in a corner.
+    const deck = page.getByTestId('link-pitch-deck');
+    await expect(deck).toBeVisible();
+    expect(await deck.evaluate(e => getComputedStyle(e).position)).not.toBe('fixed');
+    expect(await deck.evaluate(e => !!e.closest('header'))).toBe(true);
+    const db = (await deck.boundingBox())!;
+    expect(db.x + db.width).toBeLessThanOrEqual(size.width);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
   }
 });
 
@@ -304,6 +369,13 @@ test('full run: create in the browser, agent acts over HTTP, result is scored, r
     await expect(page.getByTestId(`check-${check}`)).toBeVisible();
   }
   await expect(page.getByTestId('link-export-json')).toHaveAttribute('href', new RegExp(`/api/sandbox/runs/${id}/export$`));
+  // Finished run offers team use, separate from research sharing.
+  const teams = page.getByTestId('panel-teams');
+  await expect(teams).toBeVisible();
+  await expect(page.getByTestId('link-run-audit')).toHaveAttribute('href', '/audit');
+  await expect(page.getByTestId('link-run-email')).toHaveAttribute('href', /^mailto:hello@chargebackos\.dev/);
+  await expect(page.getByTestId('link-run-blog')).toHaveAttribute('href', /^\/blog\//);
+  expect((await teams.boundingBox())!.width).toBeGreaterThan(250);
   await page.goto('/');
   await expect(page.getByTestId(`link-run-${id}`)).toBeVisible();
   await page.getByTestId(`link-run-${id}`).click();
@@ -360,7 +432,7 @@ test('legacy office page fails gracefully while its API is switched off', async 
 
 test.describe('phone-size screen', () => {
   test.use({ viewport: { width: 375, height: 812 } });
-  for (const path of ['/', '/example', '/guide', '/privacy', '/blog', '/blog/refund-sent-screenshot-dispute-clock']) {
+  for (const path of ['/', '/example', '/guide', '/privacy', '/blog', '/blog/refund-sent-screenshot-dispute-clock', '/audit']) {
     test(`no sideways scrolling on ${path}`, async ({ page }) => {
       await page.goto(path);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

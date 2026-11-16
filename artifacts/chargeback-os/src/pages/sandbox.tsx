@@ -6,6 +6,8 @@ import { Capacity, CreateRun } from '@/components/create-run';
 import { AgentDocumentLinks, StableMcpSetup } from '@/components/agent-handoff';
 import { VersionComparisons } from '@/components/version-comparisons';
 import { UsageAnalyticsNotice } from '@/components/usage-analytics-notice';
+import { posts } from '@/lib/blog';
+const latestPost = posts[0];
 
 export default function SandboxPage() {
   const scenarios=useScenarios();
@@ -33,6 +35,7 @@ export default function SandboxPage() {
         <Link href="/guide#mcp-quick-start" className="sb-start-link" data-testid="link-how-it-works">Connection help</Link>
       </div>
       <p className="sb-start-text" id="sandbox-start-note" data-testid="text-start-reassurance">No package install for compatible remote MCP clients. Synthetic money only; your agent runs on your own infrastructure. Research contribution is optional and off by default.</p>
+      <p className="sb-start-text" data-testid="text-home-teams">Shipping a buying agent? See the <Link href="/audit" data-testid="link-home-audit">Agent Safety Audit</Link> for teams.{latestPost&&<> Latest from the blog: <Link href={`/blog/${latestPost.slug}`} data-testid="link-home-blog">{latestPost.title}</Link></>}</p>
     </section>
     <StableMcpSetup/>
     <Capacity launch={launch}/>

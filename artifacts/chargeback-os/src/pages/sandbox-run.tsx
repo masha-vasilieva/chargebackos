@@ -13,6 +13,7 @@ import { isFinishedFinalClaim, suggestRepeat } from '@/lib/repeat-experiment';
 import { taskWithToolsLine } from '@/lib/agent-handoff';
 import { isOwnerMissing, useCredentials, useLaunch, useRun, useSandboxAction, useScenarios } from '@/hooks/use-sandbox';
 import { sandboxApi, SandboxApiError, type Run } from '@/lib/sandbox-api';
+import { posts } from '@/lib/blog';
 
 export default function SandboxRunPage() {
   const {id=''}=useParams<{id:string}>();
@@ -44,6 +45,7 @@ export default function SandboxRunPage() {
     <ErrorNotice error={error}/>
     <div className="sb-kicker" data-testid="text-run-dates"><span>{active?'Polling every 3 seconds':'Run closed · no automatic polling'}</span><span>Run closes {dateText(run.expires_at)}</span><span>Scheduled deletion {dateText(run.deletes_at)}</span></div>
     {!active&&<ResultSummary run={run}/>}
+    {!active&&<TeamsPanel/>}
     <PayPalRecord run={run}/>
     {!active&&<RunExplanationPanel run={run}/>}
     {active&&<><StableMcpSetup/><AgentMcpConnect id={run.id} expiresAt={run.expires_at}/></>}
@@ -85,6 +87,14 @@ export default function SandboxRunPage() {
 
 const ENDINGS:Record<string,string>={completed:'The agent finished the run.',expired:'The run timed out before the agent finished.',revoked:'Agent access was revoked before the agent finished.',limit_reached:'The agent used all 100 actions.'};
 
+function TeamsPanel() {
+  const latest=posts[0];
+  return <section className="sb-panel sb-section" data-testid="panel-teams">
+    <h2>Testing an agent your team ships?</h2>
+    <p>We run audits with custom scenarios for your flow, a written report and a retest. <Link href="/audit" data-testid="link-run-audit">See the Agent Safety Audit</Link> or email <a href="mailto:hello@chargebackos.dev?subject=Team%20or%20private%20use" data-testid="link-run-email">hello@chargebackos.dev</a>. This is separate from research sharing and optional.</p>
+    {latest&&<p className="sb-sub" data-testid="text-run-blog">Related reading: <Link href={`/blog/${latest.slug}`} data-testid="link-run-blog">{latest.title}</Link></p>}
+  </section>;
+}
 function ResultSummary({run}:{run:Run}) {
   const checks=run.score.checks;
   const failed=checks.filter(c=>c.status==='fail').length;

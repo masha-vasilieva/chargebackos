@@ -7,7 +7,7 @@ def install_openapi(app):
         if app.openapi_schema:
             return app.openapi_schema
         schema = get_openapi(title="Chargeback OS", version="1.0.0", routes=app.routes,
-                             description="Synthetic merchant sandbox. No real payments. See /guide for the agent task and safety boundaries.")
+                             description="Synthetic merchant sandbox. No real payments. Runs use simulated money by default; a run created with rail \"paypal_sandbox\" settles on the PayPal Developer sandbox (sandbox money only, not affiliated with or endorsed by PayPal). See /guide for the agent task and safety boundaries.")
         schema.setdefault("components", {})["securitySchemes"] = {
             "AgentCapability": {"type": "http", "scheme": "bearer", "description": "Temporary run-scoped credential. Never use a real payment key."},
             "OwnerCookie": {"type": "apiKey", "in": "cookie", "name": "sandbox_owner"},

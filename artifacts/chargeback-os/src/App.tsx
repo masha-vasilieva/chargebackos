@@ -13,6 +13,7 @@ import SandboxExamplePage from '@/pages/sandbox-example';
 import SandboxGuidePage from '@/pages/sandbox-guide';
 import PrivacyPage from '@/pages/privacy';
 import BlogPage from '@/pages/blog';
+import AuditPage from '@/pages/audit';
 import BlogPostPage from '@/pages/blog-post';
 import { SandboxCredentials } from '@/hooks/use-sandbox';
 import '@/sandbox.css';
@@ -29,6 +30,7 @@ function Router() {
         <Route path="/guide" component={SandboxGuidePage} />
         <Route path="/example" component={SandboxExamplePage} />
         <Route path="/privacy" component={PrivacyPage} />
+        <Route path="/audit" component={AuditPage} />
         <Route path="/blog" component={BlogPage} />
         <Route path="/blog/:slug" component={BlogPostPage} />
         <Route path="/office" component={OfficePage} />

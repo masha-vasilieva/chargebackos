@@ -13,3 +13,7 @@ test('only enums and safe version',()=>{
   const bad=formatProblemReport({phase:'http://x',client:'tok',category:'a b'},'https://x/run');
   assert.doesNotMatch(bad,/http|tok|protocol_version/);assert.match(bad,/phase: unknown/);
 });
+test('Cursor is a client option and is kept in the report (regression: Cursor users had to pick "other")',()=>{
+  assert.ok(context.exports.REPORT_CLIENTS.includes('cursor'));
+  assert.match(formatProblemReport({phase:'connect',client:'cursor',category:'timeout'},'v1'),/client: cursor/);
+});
