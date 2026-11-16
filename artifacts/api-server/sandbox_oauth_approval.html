@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Approve MCP client — Chargeback OS</title>
+<style>
+body{font:16px system-ui,sans-serif;background:#f5f4ef;color:#202923;max-width:720px;margin:6vh auto;padding:24px}
+main{background:white;border:1px solid #bbc5bc;border-radius:12px;padding:28px}
+h1{font-size:28px}dt{font-weight:700;margin-top:16px}dd{margin:4px 0;overflow-wrap:anywhere}
+button,select{font:inherit;padding:12px 14px;margin:12px 8px 0 0;cursor:pointer}
+select{width:100%;background:#fbf9f0;border:1px solid #bbc5bc;border-radius:4px}
+button:disabled{cursor:not-allowed;opacity:.55}
+#approve{background:#235c3d;color:white;border:1px solid #235c3d}
+#create-run{background:#235c3d;color:white;border:1px solid #235c3d;font-weight:700}
+#error{color:#9a2929;min-height:1.2em}
+small{color:#546258}
+.notice{padding:13px 15px;border-left:3px solid #a4b87c;background:#e9eddc;margin:18px 0}
+.section{border-top:1px solid #d8ddd4;margin-top:22px;padding-top:16px}
+.secondary{color:#546258;font-size:.95em}
+.hidden{display:none}
+main{counter-reset:step}
+.lead{font-size:1.05em;margin-top:-6px}
+.step{border-top:1px solid #d8ddd4;margin-top:20px;padding-top:14px;counter-increment:step}
+.step h2{font-size:19px;margin:0 0 6px}
+.step h2::before{content:counter(step) ". "}
+#copy-task{background:#235c3d;color:white;border:1px solid #235c3d;font-weight:700}
+#details{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:8px 0}
+#details dt{margin:0;font-weight:600}#details dd{margin:0}
+.more{margin-top:22px;color:#546258}.more summary{cursor:pointer}
+@media (max-width:520px){#details{grid-template-columns:1fr}#details dd{margin-bottom:6px}}
+#task-text{white-space:pre-wrap;overflow-wrap:anywhere;background:#fbf9f0;border:1px solid #bbc5bc;border-radius:4px;padding:12px 14px;font:14px/1.5 ui-monospace,monospace;margin:8px 0 0}
+:focus-visible{outline:3px solid #c55432;outline-offset:2px}
+</style>
+<main>
+<small>CHARGEBACK OS · SYNTHETIC SANDBOX</small>
+<h1>Connect your agent</h1>
+<p class="lead"><strong id="client-line">This client</strong> wants to act in one synthetic run. No real money moves.</p>
+
+<section id="task-box" class="step hidden" aria-labelledby="task-heading">
+  <h2 id="task-heading">Copy the task</h2>
+  <p class="secondary">After you approve, this page sends you back to your app. Paste the task into your agent's chat there.</p>
+  <pre id="task-text"></pre>
+  <button id="copy-task" type="button">Copy task</button> <span id="copy-status" class="secondary" role="status" aria-live="polite"></span>
+</section>
+
+<section id="run-picker" class="step hidden" aria-labelledby="run-heading">
+  <h2 id="run-heading">Choose the run</h2>
+  <label for="run-select" class="secondary">Runs from this browser only</label>
+  <select id="run-select"></select>
+  <p id="selected-run" class="secondary"></p>
+</section>
+
+<section id="empty-runs" class="step hidden" aria-labelledby="empty-heading">
+  <h2 id="empty-heading">Create a run</h2>
+  <p class="secondary">No active runs in this browser. Create one here, or open this link in the browser where you created your run.</p>
+  <div id="create-run-box" class="hidden">
+    <label for="scenario-select">Choose a behavior for the new run</label>
+    <select id="scenario-select"></select>
+    <button id="create-run">Create a run</button>
+  </div>
+</section>
+
+<section class="step" aria-labelledby="approve-heading">
+  <h2 id="approve-heading">Check and approve</h2>
+  <dl id="details"></dl>
+  <p class="secondary"><strong>Client names are unverified.</strong> Approve only if you just started this connection and the callback address looks right.</p>
+  <p id="error" role="status" aria-live="polite">Loading connection details…</p>
+  <button id="approve" disabled>Approve this run</button><button id="deny" disabled>Deny</button>
+</section>
+
+<details class="more">
+  <summary>What this allows</summary>
+  <p>The agent can make synthetic purchases, check results, request synthetic refunds and finish this one run. It cannot create runs, read your reports, change research sharing or use your browser cookie.</p>
+  <p>Access renews while the run is active and ends when the run finishes or expires, or when you revoke it on the run page. Research sharing is separate and does not change. This request expires after five minutes; if it does, sign in again from your agent.</p>
+</details>
+<p><a href="/" rel="noreferrer">Return to the dashboard</a></p>
+</main>
+<script>
+const endpoint="/api/sandbox/oauth/requests/__REQUEST_ID__";
+const stableRequest=__STABLE_REQUEST__;
+const error=document.getElementById("error");
+const approve=document.getElementById("approve");
+const deny=document.getElementById("deny");
+const createRunButton=document.getElementById("create-run");
+const runPicker=document.getElementById("run-picker");
+const emptyRuns=document.getElementById("empty-runs");
+const details=document.getElementById("details");
+const runSelect=document.getElementById("run-select");
+const selectedRun=document.getElementById("selected-run");
+const createRunBox=document.getElementById("create-run-box");
+const scenarioSelect=document.getElementById("scenario-select");
+const taskBox=document.getElementById("task-box");
+const taskText=document.getElementById("task-text");
+const copyStatus=document.getElementById("copy-status");
+let requestData=null;
+let runs=[];
+let busy=false;
+let requestExpired=false;
+
+async function response(res){
+  const data=await res.json().catch(()=>null);
+  if(!res.ok){
+    const message=data&&typeof data==="object"?(data.detail||data.error):null;
+    const err=new Error(typeof message==="string"?message:"Authorization could not be completed.");
+    err.status=res.status;
+    throw err;
+  }
+  if(!data||typeof data!=="object")throw new Error("The server returned an invalid response.");
+  return data;
+}
+function setBusy(value){
+  busy=value;
+  approve.disabled=busy||requestExpired||!requestData||(requestData.stable&&!runSelect.value);
+  deny.disabled=busy||requestExpired||!requestData;
+  createRunButton.disabled=busy||!scenarioSelect.value;
+}
+function errorMessage(err){
+  if(err.status===410||err.status===404||err.message==="authorization_request_expired"){
+    requestExpired=true;
+    emptyRuns.classList.add("hidden");
+    setBusy(busy);
+    return "This approval request expired or is no longer available. Click Authenticate again in your MCP client.";
+  }
+  return err.message+" No access has been granted.";
+}
+function appendDetail(label,value){
+  const dt=document.createElement("dt"),dd=document.createElement("dd");
+  dt.textContent=label;dd.textContent=String(value);
+  details.append(dt,dd);
+}
+function renderRuns(){
+  runSelect.replaceChildren();
+  for(const run of runs){
+    const option=document.createElement("option");
+    option.value=run.run_id;
+    option.textContent=`${run.scenario.replaceAll("_"," ")} · ${new Date(run.created_at*1000).toLocaleString()} · closes ${new Date(run.expires_at*1000).toLocaleTimeString()}`;
+    runSelect.append(option);
+  }
+  runSelect.value=runs[0]?.run_id||"";
+  runPicker.classList.toggle("hidden",runs.length===0);
+  emptyRuns.classList.toggle("hidden",runs.length!==0);
+  createRunBox.classList.toggle("hidden",runs.length!==0);
+  updateSelectedRun();
+}
+function updateSelectedRun(){
+  const run=runs.find(item=>item.run_id===runSelect.value);
+  if(!requestData||!requestData.stable||!run){selectedRun.textContent="";setBusy(busy);return;}
+  selectedRun.textContent=`Selected: ${run.agent_label} · ${run.scenario.replaceAll("_"," ")} · expires ${new Date(run.expires_at*1000).toLocaleString()}.`;
+  setBusy(busy);
+}
+async function loadScenarios(){
+  const data=await response(await fetch("/api/sandbox/scenarios",{credentials:"same-origin"}));
+  scenarioSelect.replaceChildren();
+  for(const scenario of data.scenarios||[]){
+    const option=document.createElement("option");
+    option.value=scenario.id;
+    option.textContent=scenario.title;
+    scenarioSelect.append(option);
+  }
+  scenarioSelect.value=data.scenarios?.[0]?.id||"";
+  setBusy(busy);
+}
+async function loadTask(){
+  if(taskText.textContent)return;
+  try{
+    const data=await response(await fetch("/api/sandbox/scenarios",{credentials:"same-origin"}));
+    if(typeof data.task==="string"&&data.task){taskText.textContent="Use the chargeback-os MCP tools for this task.\n\n"+data.task;taskBox.classList.remove("hidden");}
+  }catch(e){/* The task is also on the run page; approval still works without it. */}
+}
+document.getElementById("copy-task").onclick=async()=>{
+  try{await navigator.clipboard.writeText(taskText.textContent);copyStatus.textContent="Copied.";}
+  catch(e){
+    const range=document.createRange();range.selectNodeContents(taskText);
+    const selection=getSelection();selection.removeAllRanges();selection.addRange(range);
+    copyStatus.textContent="Selected. Press Cmd+C or Ctrl+C to copy.";
+  }
+};
+async function loadDetails(){
+  requestData=await response(await fetch(endpoint,{credentials:"same-origin"}));
+  details.replaceChildren();
+  document.getElementById("client-line").textContent=requestData.client_name;
+  appendDetail("Client (unverified)",requestData.client_name);
+  appendDetail("Callback address",requestData.redirect_uri);
+  appendDetail("MCP address",requestData.resource);
+  appendDetail("Permission",requestData.scope);
+  if(requestData.stable){
+    runs=requestData.runs||[];
+    renderRuns();
+    if(runs.length===0){
+      error.textContent="Create a run in this browser, then review it and approve access.";
+      await loadScenarios();
+    }else{
+      error.textContent="Review the selected run before approving access.";
+      appendDetail("Research sharing","Unchanged");
+    }
+  }else{
+    appendDetail("Run",requestData.run_id);
+    appendDetail("Behavior",requestData.scenario.replaceAll("_"," "));
+    appendDetail("Run expires",new Date(requestData.expires_at*1000).toLocaleString());
+    appendDetail("Existing research consent",requestData.research_consent?"On — unchanged":"Off — unchanged");
+    error.textContent="";
+  }
+  if(!requestData.stable||runs.length)loadTask();
+  setBusy(false);
+}
+runSelect.addEventListener("change",updateSelectedRun);
+scenarioSelect.addEventListener("change",()=>setBusy(busy));
+createRunButton.onclick=async()=>{
+  setBusy(true);
+  try{
+    await response(await fetch("/api/sandbox/owner",{
+      method:"POST",credentials:"same-origin",
+      headers:{"X-Sandbox-Client":"browser"}
+    }));
+    const created=await response(await fetch(endpoint+"/create-run",{
+      method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-Sandbox-Client":"browser"},
+      body:JSON.stringify({scenario:scenarioSelect.value})
+    }));
+    await loadDetails();
+    if(created.run){
+      runSelect.value=created.run.id;
+      updateSelectedRun();
+      error.textContent="Run created and selected. Review it, then approve to give this client access.";
+    }
+  }catch(e){error.textContent=errorMessage(e);}
+  finally{setBusy(false);}
+};
+async function decide(allow){
+  setBusy(true);
+  try{
+    const body={approve:allow};
+    if(allow&&requestData.stable)body.run_id=runSelect.value;
+    const data=await response(await fetch(endpoint,{
+      method:"POST",credentials:"same-origin",
+      headers:{"Content-Type":"application/json","X-Sandbox-Client":"browser"},
+      body:JSON.stringify(body)
+    }));
+    location.assign(data.redirect);
+  }catch(e){error.textContent=errorMessage(e);}
+  finally{setBusy(false);}
+}
+approve.onclick=()=>decide(true);
+deny.onclick=()=>decide(false);
+loadDetails().catch(async e=>{
+  if(stableRequest&&e.status===401){
+    requestData=null;
+    details.replaceChildren();
+    runPicker.classList.add("hidden");
+    emptyRuns.classList.remove("hidden");
+    createRunBox.classList.remove("hidden");
+    error.textContent="Runs belong to the browser session that created them. Create a run here, or open this approval in the browser that owns your existing run.";
+    try{await loadScenarios();}catch(scenarioError){error.textContent+=` ${scenarioError.message}`;}
+  }else if(e.status===410||e.status===404){
+    error.textContent=errorMessage(e);
+  }else if(e.status===401){
+    error.textContent="This run is unavailable in this browser. Runs belong to the browser session that created them. No access has been granted.";
+  }else{
+    error.textContent=e.message;
+  }
+  setBusy(false);
+});
+</script>
+</html>

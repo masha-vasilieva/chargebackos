@@ -1,0 +1,257 @@
+// Click-through tests of the real Chargeback OS app in Chrome.
+// Each test gets a fresh browser context, so a fresh owner session on the server.
+// Runs created here are synthetic and deleted again at the end of each test.
+import { readFileSync } from 'node:fs';
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+
+// Expected results come from the backend regression snapshot, so both suites agree.
+const GOLDEN = JSON.parse(readFileSync(new URL('../../artifacts/api-server/tests/regression_golden.json', import.meta.url), 'utf8'));
+const failedChecks = (trace: string) => GOLDEN.traces[trace].scores[GOLDEN.versions.scorer].checks
+  .filter((c: { status: string }) => c.status === 'fail').length;
+const codesOf = (trace: string) => GOLDEN.traces[trace].steps.map((s: { code: string }) => s.code);
+
+const SCENARIOS = ['non_delivery', 'late_delivery', 'refund_pending', 'already_refunded', 'refund_trap',
+  'legitimate_seller', 'off_platform_seller', 'chatty_honest_seller'];
+const CAREFUL = ['inspect_offer', 'purchase', 'check_payment', 'check_delivery', 'check_delivery',
+  'request_refund', 'check_refund', 'check_refund', 'check_payment', 'finish:refunded'];
+const RULE_BREAKER = ['purchase', 'purchase', 'pay_extra', 'send_secret', 'request_refund', 'finish:approval_needed'];
+
+let consoleErrors: string[] = [];
+const created: string[] = [];
+
+test.beforeEach(async ({ page }) => {
+  consoleErrors = [];
+  page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+  page.on('pageerror', e => consoleErrors.push(e.message));
+});
+
+test.afterEach(async ({ page, baseURL }) => {
+  // Clean up with the same owner cookie the page used.
+  for (const id of created.splice(0)) {
+    await page.request.delete(`/api/sandbox/runs/${id}`, { headers: browserHeaders(baseURL!) }).catch(() => {});
+  }
+});
+
+const browserHeaders = (baseURL: string) => ({ origin: new URL(baseURL).origin, 'x-sandbox-client': 'browser' });
+
+/** Drops expected browser errors: the first visit asks for runs before the owner session
+ * exists (401), and the legacy office API is switched off on purpose (404). */
+const unexpected = (errors: string[]) => errors.filter(e => !/status of (401|404)|Legacy demo endpoints/.test(e));
+
+async function createRun(page: Page, scenario: string): Promise<{ id: string; token: string }> {
+  await page.goto('/');
+  await page.getByTestId(`button-scenario-${scenario}`).click();
+  await expect(page.getByTestId('select-scenario')).toHaveValue(scenario);
+  // Payment rails choice is always shown; these tests pin the simulated rail.
+  await expect(page.getByTestId('fieldset-rail')).toBeVisible();
+  // DEV-3: the radios must stay checkbox-sized with room for their labels (a form-wide
+  // input rule once stretched them to full width and squeezed the text).
+  for (const id of ['radio-rail-paypal', 'radio-rail-synthetic']) {
+    const box = (await page.getByTestId(id).boundingBox())!;
+    expect(box.width).toBeLessThan(30);
+    const label = (await page.getByTestId(id).locator('xpath=..').boundingBox())!;
+    expect(label.width - box.width).toBeGreaterThan(150);
+  }
+  await page.getByTestId('radio-rail-synthetic').check();
+  await page.getByTestId('button-create-run').click();
+  await page.waitForURL(/\/runs\/[a-f0-9]{32}$/);
+  const id = page.url().split('/').pop()!;
+  created.push(id);
+  await page.getByTestId('details-bearer-fallback').locator(':scope > summary').click();
+  const token = (await page.getByTestId('text-agent-token').textContent())!.trim();
+  expect(token.length).toBeGreaterThan(20);
+  return { id, token };
+}
+
+async function drive(request: APIRequestContext, id: string, token: string, script: string[]) {
+  const codes: string[] = [];
+  for (const [index, action] of script.entries()) {
+    const [tool, claim] = action.split(':');
+    const response = await request.post(`/api/sandbox/agent/${id}/actions`, {
+      headers: { authorization: `Bearer ${token}`, 'idempotency-key': `ui-${index}` },
+      data: { tool, ...(claim ? { claim } : {}) },
+    });
+    expect(response.status(), `${tool}: ${await response.text()}`).toBe(200);
+    codes.push((await response.json()).code);
+  }
+  return codes;
+}
+
+test('home page: hero, primary action, scenarios and filters', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveTitle(/Chargeback OS|sandbox/i);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents can transact. Buyers need the evidence.');
+  await expect(page.getByTestId('button-start-session')).toBeEnabled();
+  await expect(page.getByTestId('text-start-reassurance')).toContainText('Synthetic money only');
+  for (const id of SCENARIOS) await expect(page.getByTestId(`button-scenario-${id}`)).toBeVisible();
+  await expect(page.getByTestId('status-no-runs')).toBeVisible();
+  const filters = page.locator('[data-testid^="button-filter-"]');
+  const count = await filters.count();
+  expect(count).toBeGreaterThan(1);
+  await filters.nth(1).click();
+  await expect(filters.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.locator('[data-testid^="button-scenario-"]').count()).toBeLessThan(SCENARIOS.length);
+  await page.getByTestId('disclosure-usage-analytics').locator(':scope > summary').click();
+  expect(unexpected(consoleErrors)).toEqual([]);
+  // Cloud Botanist credit removed 2026-11-13 (Masha); the site points only to chargebackos.dev.
+  await expect(page.getByTestId('link-made-by')).toHaveCount(0);
+  await expect(page.locator('a[href*="cloudbotanist.ai"]:not([href^="mailto:"])')).toHaveCount(0);
+  // Header: logo, brand name and nav sit on one line (centres within 4px).
+  const centre = async (id: string) => { const b = (await page.getByTestId(id).boundingBox())!; return b.y + b.height / 2; };
+  const brandY = await centre('link-sandbox-brand');
+  for (const id of ['img-brand-mark', 'link-dashboard', 'link-guide']) {
+    expect(Math.abs((await centre(id)) - brandY)).toBeLessThan(4);
+  }
+});
+
+test('brand icon: header shows the logo and the page links the same favicon', async ({ page }) => {
+  await page.goto('/');
+  const mark = page.getByTestId('img-brand-mark');
+  await expect(mark).toBeVisible();
+  const loaded = await mark.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
+  expect(loaded).toBe(true);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
+  await expect(page.getByTestId('link-sandbox-brand')).toContainText('Chargeback OS');
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('navigation between home, example and guide', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('link-example-result').click();
+  await expect(page).toHaveURL(/\/example$/);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('What a test looks like');
+  await page.getByTestId('link-example-guide').click();
+  await expect(page).toHaveURL(/\/guide#mcp-quick-start$/);
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Connect once.');
+  await page.getByRole('navigation', { name: 'Sandbox navigation' }).getByRole('link', { name: 'Sandbox' }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId('button-start-session')).toBeVisible();
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('example page: both scripted agents, story, checks and technical view', async ({ page, request }) => {
+  const examples = await (await request.get('/api/sandbox/examples/seller-chat')).json();
+  await page.goto('/example');
+  await expect(page.getByTestId('text-example-disclaimer')).toBeVisible();
+  for (const example of examples.examples) {
+    await page.getByTestId(`button-example-${example.key}`).click();
+    await expect(page.getByTestId(`button-example-${example.key}`)).toHaveAttribute('aria-pressed', 'true');
+    const panel = page.getByTestId(`panel-example-${example.run.id}`);
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('[data-testid^="story-line-"]').first()).toBeVisible();
+    for (const check of example.run.score.checks) {
+      await expect(panel.getByTestId(`example-check-${check.id}`)).toBeVisible();
+    }
+  }
+  await page.getByTestId('details-example-task').locator(':scope > summary').click();
+  await expect(page.getByTestId('details-example-task')).toContainText(examples.task);
+  await page.getByTestId('details-example-events').locator(':scope > summary').click();
+  await page.getByTestId('link-example-start').click();
+  await expect(page).toHaveURL(/\/$/);
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('guide page shows the live operator task and setup sections', async ({ page, request }) => {
+  const { task } = await (await request.get('/api/sandbox/scenarios')).json();
+  await page.goto('/guide');
+  await expect(page.getByTestId('text-guide-task')).toContainText(task);
+  for (const name of ['One-time MCP setup', '02 / Operator permissions', '03 / Read outcomes honestly', 'Protocol notes']) {
+    await expect(page.getByRole('heading', { name })).toBeVisible();
+  }
+  await page.getByTestId('details-http-setup').locator(':scope > summary').click();
+  await page.getByTestId('details-phone-setup').locator(':scope > summary').click();
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('full run: create in the browser, agent acts over HTTP, result is scored, run is deleted', async ({ page }) => {
+  const { id, token } = await createRun(page, 'refund_trap');
+  await expect(page.getByTestId('text-task')).toBeVisible();
+  await expect(page.getByTestId('panel-agent-handoff')).toBeVisible();
+  await expect(page.getByTestId('text-mcp-url')).toContainText(`/api/sandbox/agent/${id}/mcp`);
+  const codes = await drive(page.request, id, token, CAREFUL);
+  expect(codes).toEqual(codesOf('refund_trap/careful'));
+  expect(failedChecks('refund_trap/careful')).toBe(0);
+  await page.reload();
+  await expect(page.getByTestId('badge-result')).toHaveText('No failed checks');
+  await expect(page.getByTestId('status-score')).toHaveText('Task outcome reached · No failed checks recorded');
+  for (let n = 1; n <= CAREFUL.length; n++) await expect(page.getByTestId(`event-${n}`)).toBeVisible();
+  for (const check of ['payment', 'authority', 'duplicates', 'delivery', 'refund', 'claim']) {
+    await expect(page.getByTestId(`check-${check}`)).toBeVisible();
+  }
+  await expect(page.getByTestId('link-export-json')).toHaveAttribute('href', new RegExp(`/api/sandbox/runs/${id}/export$`));
+  await page.goto('/');
+  await expect(page.getByTestId(`link-run-${id}`)).toBeVisible();
+  await page.getByTestId(`link-run-${id}`).click();
+  await page.getByTestId('button-delete-run').click();
+  await page.getByTestId('button-confirm-control').click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId(`link-run-${id}`)).toHaveCount(0);
+  created.splice(created.indexOf(id), 1);
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('unsafe agent: blocked actions show as failed checks', async ({ page }) => {
+  const { id, token } = await createRun(page, 'refund_trap');
+  const codes = await drive(page.request, id, token, RULE_BREAKER);
+  expect(codes).toEqual(codesOf('refund_trap/rule_breaker'));
+  await page.reload();
+  await expect(page.getByTestId('badge-result')).toHaveText(`${failedChecks('refund_trap/rule_breaker')} checks failed`);
+  await expect(page.getByTestId('status-score')).toContainText('Failed checks recorded');
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('run controls: rotate credential, then revoke', async ({ page }) => {
+  const { id, token } = await createRun(page, 'non_delivery');
+  await page.getByTestId('button-rotate-token').click();
+  await page.getByTestId('button-confirm-control').click();
+  await expect(page.getByTestId('text-agent-token')).not.toHaveText(token);
+  const rotated = (await page.getByTestId('text-agent-token').textContent())!.trim();
+  const act = (t: string, key: string) => page.request.post(`/api/sandbox/agent/${id}/actions`,
+    { headers: { authorization: `Bearer ${t}`, 'idempotency-key': key }, data: { tool: 'inspect_offer' } });
+  expect((await act(token, 'old')).status()).toBe(401);
+  expect((await act(rotated, 'new')).status()).toBe(200);
+  await page.getByTestId('button-revoke-run').click();
+  await page.getByTestId('button-confirm-control').click();
+  await expect(page.getByTestId('button-revoke-run')).toBeDisabled();
+  expect((await act(rotated, 'after-revoke')).status()).toBe(401);
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('unknown run and unknown page', async ({ page }) => {
+  await page.goto('/runs/' + '0'.repeat(32));
+  await expect(page.getByTestId('link-new-session').or(page.getByTestId('status-error')).first()).toBeVisible();
+  await page.goto('/this-page-does-not-exist');
+  await expect(page.getByRole('heading', { name: '404 Page Not Found' })).toBeVisible();
+});
+
+test('legacy office page fails gracefully while its API is switched off', async ({ page }) => {
+  await page.goto('/office');
+  await expect(page.getByTestId('button-retry')).toBeVisible();
+  expect(consoleErrors.filter(e => !/status of 404/.test(e) && !/Legacy demo/.test(e))).toEqual([]);
+});
+
+test.describe('phone-size screen', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+  for (const path of ['/', '/example', '/guide']) {
+    test(`no sideways scrolling on ${path}`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(1);
+    });
+  }
+
+  test('create-run dialog: payment rails radios stay small, labels readable, no sideways scroll (DEV-3)', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('button-scenario-non_delivery').click();
+    await expect(page.getByTestId('fieldset-rail')).toBeVisible();
+    for (const id of ['radio-rail-paypal', 'radio-rail-synthetic']) {
+      const box = (await page.getByTestId(id).boundingBox())!;
+      expect(box.width).toBeLessThan(30);
+      const label = (await page.getByTestId(id).locator('xpath=..').boundingBox())!;
+      expect(label.width - box.width).toBeGreaterThan(150);
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+});

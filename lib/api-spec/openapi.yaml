@@ -1,0 +1,213 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+paths:
+  /sandbox/runs/{run_id}/research-preview:
+    get:
+      operationId: getSandboxResearchPreview
+      summary: Owner-only preview of the allowlisted research record; does not change consent
+      parameters:
+        - in: path
+          name: run_id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Preview excludes credentials, labels, owner/run IDs and absolute event timestamps
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResearchPreview" }
+        "401": { description: Owner session required }
+        "404": { description: "Run not owned, deleted or no longer retained" }
+  /sandbox/launch:
+    get:
+      operationId: getSandboxLaunch
+      summary: Advisory capacity for the capped public experiment
+      responses:
+        "200":
+          description: Creation rechecks capacity transactionally
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LaunchStatus" }
+  /office:
+    get:
+      operationId: getOffice
+      responses:
+        "200":
+          description: Demo office snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Office" }
+  /office/actions:
+    post:
+      operationId: actOnOffice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OfficeAction" }
+      responses:
+        "200":
+          description: Updated snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Office" }
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+components:
+  schemas:
+    OfficeAction:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [speed, cancel, dispatch, snooze, simulate, reset] }
+        id: { type: string }
+        speed: { type: integer, minimum: 0, maximum: 3 }
+    Office:
+      type: object
+      required: [mode, speed, disputes, tasks, directives, activity, agents, metrics, integrations]
+      properties:
+        mode: { type: string }
+        speed: { type: integer }
+        disputes:
+          type: array
+          items: { $ref: "#/components/schemas/Dispute" }
+        tasks:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+        directives:
+          type: array
+          items: { $ref: "#/components/schemas/Directive" }
+        activity:
+          type: array
+          items: { $ref: "#/components/schemas/Activity" }
+        agents:
+          type: array
+          items: { $ref: "#/components/schemas/Agent" }
+        metrics: { $ref: "#/components/schemas/Metrics" }
+        integrations:
+          type: array
+          items: { $ref: "#/components/schemas/Integration" }
+    Dispute:
+      type: object
+      required: [id, merchant, customer, amount, currency, reason, status, deadline, telemetry, events]
+      properties:
+        id: { type: string }
+        merchant: { type: string }
+        customer: { type: string }
+        amount: { type: number }
+        currency: { type: string }
+        reason: { type: string }
+        status: { type: string }
+        deadline: { type: string }
+        telemetry: { type: boolean }
+        events:
+          type: array
+          items: { $ref: "#/components/schemas/Activity" }
+    Task:
+      type: object
+      required: [id, title, agent, status, progress, disputeId]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        agent: { type: string }
+        status: { type: string }
+        progress: { type: number }
+        disputeId: { type: string }
+    Directive:
+      type: object
+      required: [id, title, context, asset, status, disputeId]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        context: { type: string }
+        asset: { type: string }
+        status: { type: string }
+        disputeId: { type: string }
+        snoozedUntil: { type: string }
+    Activity:
+      type: object
+      required: [id, text, time, agent]
+      properties:
+        id: { type: string }
+        text: { type: string }
+        time: { type: string }
+        agent: { type: string }
+    Agent:
+      type: object
+      required: [id, name, role, status, mood, bonus]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        role: { type: string }
+        status: { type: string }
+        mood: { type: string }
+        bonus: { type: integer }
+    Metrics:
+      type: object
+      required: [inFlight, earned, winRate, ratio, tokenBudget, storageCount, pilotCount, pilotCapacity, transactionCount]
+      properties:
+        inFlight: { type: number }
+        earned: { type: number }
+        winRate: { type: number }
+        ratio: { type: number }
+        tokenBudget: { type: number }
+        storageCount: { type: integer }
+        pilotCount: { type: integer }
+        pilotCapacity: { type: integer }
+        transactionCount: { type: integer }
+    Integration:
+      type: object
+      required: [name, status, description]
+      properties:
+        name: { type: string }
+        status: { type: string }
+        description: { type: string }
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    LaunchStatus:
+      type: object
+      required: [available, reason, daily_limit, retained_limit, resets_at]
+      properties:
+        available: { type: boolean }
+        reason: { type: string, enum: [open, paused, daily_limit, retained_limit] }
+        daily_limit: { type: integer }
+        retained_limit: { type: integer }
+        resets_at: { type: integer, description: Next UTC midnight in Unix seconds }
+    ResearchPreview:
+      type: object
+      required: [record, consent, research_deletes_at, consent_version]
+      properties:
+        record:
+          type: object
+          additionalProperties: true
+          description: Allowlisted synthetic state, observations, actions, score and categorical context
+        consent: { type: boolean }
+        research_deletes_at: { type: number }
+        consent_version: { type: string }
+

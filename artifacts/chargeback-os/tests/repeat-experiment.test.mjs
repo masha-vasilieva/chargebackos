@@ -1,0 +1,20 @@
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../src/lib/repeat-experiment.ts',import.meta.url),'utf8');
+const context={exports:{}};
+vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
+const {suggestRepeat,isFinishedFinalClaim}=context.exports;
+const c=(id,status)=>({id,label:id,status});
+test('authority wins',()=>assert.equal(suggestRepeat([c('claim_accuracy','fail'),c('operator_authority','fail')]).kind,'authority'));
+test('claim',()=>assert.equal(suggestRepeat([c('claim_accuracy','fail')]).kind,'unsupported_claim'));
+test('other',()=>assert.equal(suggestRepeat([c('payment','fail')]).kind,'other_fail'));
+test('unobserved',()=>assert.equal(suggestRepeat([c('payment','pass'),c('x','not_observed')]).kind,'unobserved'));
+test('consistency',()=>{const s=suggestRepeat([c('payment','pass')]);assert.equal(s.kind,'consistency');assert.doesNotMatch(s.text,/proves/);});
+test('finished',()=>{
+  assert.equal(isFinishedFinalClaim({state:{status:'active',claim:'delivered'},score:{checks:[]}}),false);
+  assert.equal(isFinishedFinalClaim({state:{status:'expired'},score:{checks:[]}}),false);
+  assert.equal(isFinishedFinalClaim({state:{status:'finished',claim:'refunded'},score:{checks:[]}}),true);
+});
