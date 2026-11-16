@@ -287,6 +287,18 @@ test('audit page: offer, price and contact links; reachable from nav and home; r
     await expect(page.getByTestId('text-audit-free-vs-paid')).toContainText('free to run yourself');
     await expect(page.getByTestId('link-audit-free')).toHaveAttribute('href', '/');
     await expect(audit.locator('ol > li').first()).toContainText('custom scenarios');
+    // Free sandbox vs audit comparison: 6 rows, fits the screen; on phone each row stacks.
+    const compare = page.getByTestId('table-audit-compare');
+    await expect(compare.locator('tbody tr')).toHaveCount(6);
+    await expect(compare).toContainText('2 built for your flow');
+    const cb = (await compare.boundingBox())!;
+    expect(cb.x + cb.width).toBeLessThanOrEqual(size.width);
+    const firstRow = compare.locator('tbody tr').first();
+    const free = (await firstRow.locator('td').nth(0).boundingBox())!;
+    const paid = (await firstRow.locator('td').nth(1).boundingBox())!;
+    expect(free.width).toBeGreaterThan(80);
+    if (size.width < 640) expect(paid.y).toBeGreaterThanOrEqual(free.y + free.height - 1);
+    else expect(Math.abs(paid.y - free.y)).toBeLessThan(4);
     // Lists show numbers and bullets, with room for the marker inside the page.
     expect(await audit.locator('ol').evaluate(el => getComputedStyle(el).listStyleType)).toBe('decimal');
     expect(await audit.locator('ul').first().evaluate(el => getComputedStyle(el).listStyleType)).toBe('disc');
@@ -449,6 +461,37 @@ test('full run: create in the browser, agent acts over HTTP, result is scored, r
   expect(unexpected(consoleErrors)).toEqual([]);
 });
 
+test('explain this run: button shows the explanation, and a server error shows a message, not a crash', async ({ page }) => {
+  // Regression (2026-11-16): the explanation endpoint answered 500 and no browser test clicked the button.
+  // Claude is faked here so the test costs nothing; the backend path is covered by unit tests.
+  const { id, token } = await createRun(page, 'refund_trap');
+  await drive(page.request, id, token, CAREFUL);
+  await page.route('**/api/sandbox/features', r => r.fulfill({ json: { paypal: { available: false, environment: 'sandbox', webhooks: false }, explanations: true } }));
+  let reply: { status: number; json: object } = { status: 503, json: { detail: 'Explanation unavailable (explanation_failed). Try again later.' } };
+  await page.route(`**/api/sandbox/runs/${id}/explanation`, r => r.fulfill(reply));
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    await page.reload();
+    const button = page.getByTestId('button-explain');
+    await expect(button).toBeVisible();
+    const bb = (await button.boundingBox())!;
+    expect(bb.height).toBeGreaterThanOrEqual(43.5);
+    expect(bb.x + bb.width).toBeLessThanOrEqual(size.width);
+    reply = { status: 503, json: { detail: 'Explanation unavailable (explanation_failed). Try again later.' } };
+    await button.click();
+    await expect(page.getByTestId('panel-explanation').getByRole('alert')).toContainText('unavailable');
+    await expect(button).toBeEnabled();
+    reply = { status: 200, json: { text: 'The agent checked the refund with the payment system before reporting it.', model: 'claude-opus-5-5', created: 1 } };
+    await button.click();
+    const text = page.getByTestId('text-explanation');
+    await expect(text).toContainText('checked the refund');
+    const tb = (await text.boundingBox())!;
+    expect(tb.width).toBeGreaterThan(200);
+    expect(tb.x + tb.width).toBeLessThanOrEqual(size.width);
+  }
+  expect(unexpected(consoleErrors.filter(e => !/status of 503/.test(e)))).toEqual([]);
+});
+
 test('unsafe agent: blocked actions show as failed checks', async ({ page }) => {
   const { id, token } = await createRun(page, 'refund_trap');
   const codes = await drive(page.request, id, token, RULE_BREAKER);
@@ -486,10 +529,16 @@ test('unknown run and unknown page', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '404 Page Not Found' })).toBeVisible();
 });
 
-test('legacy office page fails gracefully while its API is switched off', async ({ page }) => {
-  await page.goto('/office');
-  await expect(page.getByTestId('button-retry')).toBeVisible();
-  expect(consoleErrors.filter(e => !/status of 404/.test(e) && !/Legacy demo/.test(e))).toEqual([]);
+test('old office demo pages are gone: they show the 404 page and call no demo API (H33)', async ({ page }) => {
+  const demoCalls: string[] = [];
+  page.on('request', r => { if (/\/api\/(office|evidence)/.test(r.url())) demoCalls.push(r.url()); });
+  for (const path of ['/office', '/disputes', '/settings']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: '404 Page Not Found' })).toBeVisible();
+  }
+  expect(demoCalls).toEqual([]);
+  expect((await page.request.get('/api/office')).status()).toBe(404);
+  expect(unexpected(consoleErrors)).toEqual([]);
 });
 
 test.describe('phone-size screen', () => {

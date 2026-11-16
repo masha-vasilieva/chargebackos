@@ -332,3 +332,17 @@ button.sb-scenario { display:inline; border:0; background:none; padding:0; color
 .sb-run-consent { margin-top:14px; }
 .sb-rotate { margin-top:14px; }
 @media (max-width: 767px) { .sandbox .sb-run-title { font-size:28px; } }
+/* Audit: free sandbox vs audit comparison */
+.sb-compare { width:100%; border-collapse:collapse; margin:8px 0 16px; }
+.sb-compare th,.sb-compare td { border:1px solid #bbb; padding:8px 10px; text-align:left; vertical-align:top; }
+.sb-compare thead th { background:#f2f2f2; }
+.sb-compare tbody th { white-space:nowrap; }
+@media (max-width: 640px) {
+  .sb-compare thead { display:none; }
+  .sb-compare,.sb-compare tbody,.sb-compare tr,.sb-compare th,.sb-compare td { display:block; width:auto; }
+  .sb-compare tr { margin:0 0 12px; border:1px solid #bbb; }
+  .sb-compare th,.sb-compare td { border:0; border-top:1px solid #ddd; }
+  .sb-compare tbody th { border-top:0; background:#f2f2f2; }
+  .sb-compare td:nth-of-type(1)::before { content:"Free sandbox: "; font-weight:bold; }
+  .sb-compare td:nth-of-type(2)::before { content:"Audit: "; font-weight:bold; }
+}

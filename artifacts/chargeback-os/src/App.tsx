@@ -4,9 +4,6 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
-import OfficePage from '@/pages/office';
-import DisputesPage from '@/pages/disputes';
-import SettingsPage from '@/pages/settings';
 import SandboxPage from '@/pages/sandbox';
 import SandboxRunPage from '@/pages/sandbox-run';
 import SandboxExamplePage from '@/pages/sandbox-example';
@@ -33,10 +30,6 @@ function Router() {
         <Route path="/audit" component={AuditPage} />
         <Route path="/blog" component={BlogPage} />
         <Route path="/blog/:slug" component={BlogPostPage} />
-        <Route path="/office" component={OfficePage} />
-        <Route path="/disputes" component={DisputesPage} />
-        <Route path="/disputes/:id" component={DisputesPage} />
-        <Route path="/settings" component={SettingsPage} />
         <Route component={NotFound} />
       </Switch>
     </RoutedErrorBoundary>

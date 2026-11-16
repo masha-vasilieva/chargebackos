@@ -1178,7 +1178,13 @@ class StorageTests(IsolatedSandboxTest):
                 })
 
     def test_purge_scales_with_mostly_active_buckets_after_repeated_churn(self):
-        cutoff = int(time.time()) // 60 - 1440
+        # PD-9: freeze the clock so a minute boundary between setup and purge()
+        # cannot turn edge buckets stale (it once failed with 194232 vs 196000).
+        # Regression guard: pin the clock just over a minute in the past, so a purge()
+        # that read the real clock would be at least 2 minutes later and delete the
+        # cutoff+1 edge buckets (the original failure). The frozen purge() must not.
+        frozen = (int(time.time()) // 60) * 60 - 60.001
+        cutoff = int(frozen) // 60 - 1440
         size = MAX_OAUTH_RECORDS * 50
         stale_count = MAX_OAUTH_RECORDS
         churn_size = MAX_OAUTH_RECORDS * 2
@@ -1292,7 +1298,8 @@ class StorageTests(IsolatedSandboxTest):
 
         self.assertEqual(active_before[0], size - stale_count)
         started = time.monotonic()
-        purge()
+        with patch("services.sandbox_store.time.time", return_value=frozen):
+            purge()
         elapsed = time.monotonic() - started
         print(
             f"Purged {stale_count:,} mixed stale buckets after "
@@ -1317,7 +1324,10 @@ class StorageTests(IsolatedSandboxTest):
             self.assertEqual(active_after, active_before)
 
     def test_autovacuum_recovers_rate_limit_storage_after_repeated_churn(self):
-        cutoff = int(time.time()) // 60 - 1440
+        # PD-9: freeze the clock so a minute boundary between setup and purge()
+        # cannot turn edge buckets stale (it once failed with 194232 vs 196000).
+        frozen = time.time()
+        cutoff = int(frozen) // 60 - 1440
         token = secrets.token_hex(8)
         churn_prefix = f"autovacuum-churn-{token}-"
         mixed_prefix = f"autovacuum-mixed-{token}-"
@@ -1473,7 +1483,8 @@ class StorageTests(IsolatedSandboxTest):
             "autovacuum did not substantially reduce estimated dead tuples",
         )
 
-        purge()
+        with patch("services.sandbox_store.time.time", return_value=frozen):
+            purge()
         with self.engine.connect() as db:
             self.assertEqual(db.execute(text("""
                 SELECT count(*) FROM sandbox_limits
