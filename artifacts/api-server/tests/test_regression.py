@@ -17,7 +17,6 @@ Run: uv run --no-sync python -m unittest discover -s artifacts/api-server/tests 
 import copy
 import json
 import os
-import re
 import sys
 import time
 import unittest
@@ -26,8 +25,6 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from services import sandbox_engine as engine
-from services import demo
-from services.evidence_compiler import compile_demo_pdf
 from services.sandbox_comparison import observations
 from services.sandbox_research import research_record
 import sandbox_api
@@ -199,76 +196,6 @@ class EngineInvariantTests(unittest.TestCase):
         self.assertEqual(record["context"]["model_family"], "unknown")
         self.assertEqual([e["elapsed_seconds"] for e in record["events"]],
                          [float(i) for i in range(1, len(events) + 1)])
-
-
-class LegacyDemoTests(unittest.TestCase):
-    """The office demo and PDF code still work, even though the routes are disabled."""
-
-    def test_initial_state_and_snapshot(self):
-        state = demo.initial_state()
-        self.assertEqual(len(state["disputes"]), 8)
-        self.assertEqual({d["id"] for d in state["directives"]}, {"review_demo_dp_0003", "review_demo_dp_0004"})
-        data = demo.snapshot(state)
-        self.assertFalse(any(k.startswith("_") for k in data))
-        self.assertEqual(data["metrics"]["winRate"], 66.7)
-        self.assertEqual(data["metrics"]["earned"], round((2490 + 1490) * .2, 2))
-        self.assertEqual(data["metrics"]["inFlight"], 249 + 399 + 849 + 129 + 299)
-
-    def test_advance_moves_tasks_through_the_pipeline(self):
-        state = demo.initial_state()
-        next(t for t in state["tasks"] if t["id"] == "task_1")["progress"] = 99
-        state["_lastTick"] -= 60  # advance() caps one tick at 60 seconds
-        demo.advance(state)
-        task = next(t for t in state["tasks"] if t["id"] == "task_1")
-        self.assertEqual(task["title"], "Drafting evidence dossier")
-        self.assertEqual(state["disputes"][0]["status"], "DRAFTING")
-        paused = demo.initial_state()
-        demo.perform(paused, "speed", speed=0)
-        paused["_lastTick"] -= 60
-        demo.advance(paused)
-        self.assertEqual(next(t for t in paused["tasks"] if t["id"] == "task_1")["progress"], 28)
-
-    def test_every_action(self):
-        state = demo.initial_state()
-        demo.perform(state, "cancel", "task_2")
-        self.assertEqual(next(d for d in state["disputes"] if d["id"] == "demo_dp_0002")["status"], "CANCELED")
-        demo.perform(state, "snooze", "review_demo_dp_0003")
-        self.assertEqual(state["directives"][0]["status"], "snoozed")
-        demo.perform(state, "dispatch", "review_demo_dp_0004")
-        with self.assertRaises(ValueError):
-            demo.perform(state, "dispatch", "review_demo_dp_0004")
-        with self.assertRaises(ValueError):
-            demo.perform(state, "cancel", "task_8")
-        with self.assertRaises(LookupError):
-            demo.perform(state, "cancel", "missing")
-        with self.assertRaises(LookupError):
-            demo.perform(state, "snooze", "missing")
-        with self.assertRaises(ValueError):
-            demo.perform(state, "speed")
-        demo.perform(state, "simulate")
-        demo.perform(state, "simulate")
-        self.assertEqual(len(state["disputes"]), 10)
-        self.assertEqual(state["_nextId"], 11)
-        demo.perform(state, "reset")
-        self.assertEqual(len(state["disputes"]), 8)
-
-    def test_simulation_cap(self):
-        state = demo.initial_state()
-        state["disputes"] = state["disputes"] * 13
-        with self.assertRaises(ValueError):
-            demo.perform(state, "simulate")
-
-    def test_evidence_pdf_with_and_without_telemetry(self):
-        for dispute in (demo.dispute(1, 249, "DRAFTING"), demo.dispute(4, 129, "BLOCKED_ON_HUMAN", False)):
-            pdf = compile_demo_pdf(dispute)
-            self.assertTrue(pdf.startswith(b"%PDF-"))
-            self.assertLess(len(pdf), 10 * 1024 * 1024)
-            self.assertEqual(len(re.findall(rb"/Type\s*/Page[^s]", pdf)), 2)
-
-    def test_pdf_escapes_markup(self):
-        dispute = demo.dispute(2, 10, "DRAFTING")
-        dispute["merchant"] = "<b>Acme & Co</b>"
-        self.assertTrue(compile_demo_pdf(dispute).startswith(b"%PDF-"))
 
 
 BROWSER = {"origin": "http://testserver", "x-sandbox-client": "browser"}

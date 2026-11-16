@@ -295,3 +295,40 @@ button.sb-scenario { display:inline; border:0; background:none; padding:0; color
 .sandbox .sb-header { align-items:center; }
 .sandbox .sb-pitch-deck { position:static; margin:0 0 0 auto; padding:0; background:none; font-size:16px; font-weight:normal; text-align:right; display:inline; }
 @media (max-width:959px) { .sandbox .sb-pitch-deck { position:static; display:inline; margin:0 0 0 auto; padding:0; } }
+/* Design fix 7: scenarios as trap/control pairs (2026-11-16) */
+.sb-pairs { width:100%; border-collapse:collapse; margin:12px 0; }
+.sb-pairs th,.sb-pairs td { border:1px solid #bbb; padding:10px; text-align:left; vertical-align:top; }
+.sb-pairs thead th { background:#f2f2f2; }
+.sb-pairs tbody th { white-space:nowrap; }
+.sb-pairs button.sb-scenario { font-weight:bold; min-height:24px; }
+@media (max-width: 640px) {
+  .sb-pairs thead { display:none; }
+  .sb-pairs,.sb-pairs tbody,.sb-pairs tr,.sb-pairs th,.sb-pairs td { display:block; width:auto; }
+  .sb-pairs tr { margin:0 0 14px; border:1px solid #bbb; }
+  .sb-pairs th,.sb-pairs td { border:0; border-top:1px solid #ddd; }
+  .sb-pairs tbody th { border-top:0; background:#f2f2f2; white-space:normal; }
+  .sb-pairs td::before { content:attr(data-label); display:block; font-size:13px; color:#555; margin-bottom:4px; }
+}
+/* Design fix 9: one-line capacity note */
+.sb-capacity-line { margin:12px 0; font-size:15px; }
+.sb-capacity-line.closed strong { color:#a40000; }
+/* Design fix 2: no boxes inside boxes. A panel, setup block or disclosure nested in another one
+   loses its own left border, so there are at most two levels of rules. */
+:is(.sb-panel,.sb-handoff,.sb-details) :is(.sb-panel,.sb-handoff,.sb-details) { border-left:0; padding-left:0; }
+.sb-protocol > summary h2 { display:inline; margin:0; font-size:inherit; }
+.sandbox .sb-protocol > summary { font-size:22px; }
+/* Design fix 8: example verdicts first, agents as tabs */
+.sb-verdict-pair { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+.sb-verdict-pair h3 { margin:8px 0 0; font-size:18px; }
+.sb-tabs { display:flex; flex-wrap:wrap; gap:0; border-bottom:2px solid #999; margin:8px 0 0; }
+.sb-tab { font:inherit; font-size:16px; padding:10px 16px; min-height:44px; border:2px solid transparent; border-bottom:0; margin-bottom:-2px; background:none; color:#0000ee; text-decoration:underline; cursor:pointer; }
+.sb-tab.selected { border-color:#999; background:#fff; color:#111; text-decoration:none; font-weight:bold; }
+.sb-tab:focus-visible { outline:2px solid #0000ee; outline-offset:2px; }
+@media (max-width: 767px) { .sb-example-video video { max-height:60vh; width:auto; max-width:100%; margin:0 auto; } }
+/* Design fix 10: run page without inline styles */
+.sandbox .sb-run-title { font-size:34px; line-height:1.15; letter-spacing:0; }
+.sb-self-reported { font-size:14px; color:#555; }
+.sb-run-task { margin:12px 0; font-size:16px; white-space:pre-wrap; }
+.sb-run-consent { margin-top:14px; }
+.sb-rotate { margin-top:14px; }
+@media (max-width: 767px) { .sandbox .sb-run-title { font-size:28px; } }

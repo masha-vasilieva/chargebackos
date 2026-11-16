@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form } from '@/components/ui/form';
 import { ErrorNotice, Modal, dateText } from '@/components/sandbox-ui';
@@ -9,8 +9,9 @@ import { SandboxApiError, sandboxApi, type Run, type RunContext, type Scenario }
 import { trackUsageEvent } from '@/lib/usage-analytics';
 
 const reasonText:Record<string,string>={paused:'New runs are paused.',daily_limit:'The worldwide daily run limit has been reached.',retained_limit:'The worldwide retained-run limit has been reached.'};
-export function Capacity({launch}:{launch:ReturnType<typeof useLaunch>}) {
+export function Capacity({launch,compact=false}:{launch:ReturnType<typeof useLaunch>;compact?:boolean}) {
   const d=launch.data;
+  if(compact&&d&&!launch.isError) return <p className={`sb-capacity-line ${d.available?'':'closed'}`} role="status" data-testid="status-capacity"><strong>{d.available?'Capacity open.':reasonText[d.reason]||'New runs unavailable.'}</strong> {d.daily_limit} runs per day worldwide · synthetic money only. <Link href="/guide#privacy" data-testid="link-capacity-details">Details</Link></p>;
   if(launch.isLoading) return <div className="sb-capacity" role="status" data-testid="status-capacity">Checking launch capacity…</div>;
   if(launch.isError||!d) return <div className="sb-capacity closed" role="alert" data-testid="status-capacity"><strong>Could not check launch capacity.</strong> {launch.error instanceof Error?launch.error.message:''} New runs stay disabled until this resolves. The example and existing runs still work.<br/><button className="sb-btn" onClick={()=>{void launch.refetch();}} data-testid="button-retry-capacity">Retry</button></div>;
   return <div className={`sb-capacity ${d.available?'':'closed'}`} role="status" data-testid="status-capacity"><strong>{d.available?'Capacity open.':reasonText[d.reason]||'New runs unavailable.'}</strong> Limited public experiment: {d.daily_limit} runs per day and {d.retained_limit} retained, worldwide; a comparison uses two slots. Daily count resets {dateText(d.resets_at)}. This is advisory; creation is the final check. Not safety certification.</div>;

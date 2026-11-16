@@ -1,8 +1,7 @@
 """Portable PostgreSQL storage; never silently fall back to local storage."""
 import os
-from sqlalchemy import create_engine, String
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 url = os.environ["DATABASE_URL"]
 if url.startswith("postgres://"):
@@ -17,9 +16,3 @@ Session = sessionmaker(engine)
 
 class Base(DeclarativeBase):
     pass
-
-
-class DemoSession(Base):
-    __tablename__ = "chargeback_demo_sessions"
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    state: Mapped[dict] = mapped_column(JSONB)

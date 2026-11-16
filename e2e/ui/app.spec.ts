@@ -57,6 +57,9 @@ async function createRun(page: Page, scenario: string): Promise<{ id: string; to
   await page.waitForURL(/\/runs\/[a-f0-9]{32}$/);
   const id = page.url().split('/').pop()!;
   created.push(id);
+  // Design fix 10: the bearer token lives in the closed "Advanced" section.
+  await expect(page.getByTestId('details-run-advanced')).not.toHaveAttribute('open', '');
+  await page.getByTestId('details-run-advanced').locator(':scope > summary').click();
   await page.getByTestId('details-bearer-fallback').locator(':scope > summary').click();
   const token = (await page.getByTestId('text-agent-token').textContent())!.trim();
   expect(token.length).toBeGreaterThan(20);
@@ -77,20 +80,29 @@ async function drive(request: APIRequestContext, id: string, token: string, scri
   return codes;
 }
 
-test('home page: hero, primary action, scenarios and filters', async ({ page }) => {
+test('home page: hero, primary action, scenario pairs, setup folded below', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(/Chargeback OS|sandbox/i);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agents can transact. Buyers need the evidence.');
   await expect(page.getByTestId('button-start-session')).toBeEnabled();
   await expect(page.getByTestId('text-start-reassurance')).toContainText('Synthetic money only');
   for (const id of SCENARIOS) await expect(page.getByTestId(`button-scenario-${id}`)).toBeVisible();
-  await expect(page.getByTestId('status-no-runs')).toBeVisible();
-  const filters = page.locator('[data-testid^="button-filter-"]');
-  const count = await filters.count();
-  expect(count).toBeGreaterThan(1);
-  await filters.nth(1).click();
-  await expect(filters.nth(1)).toHaveAttribute('aria-pressed', 'true');
-  expect(await page.locator('[data-testid^="button-scenario-"]').count()).toBeLessThan(SCENARIOS.length);
+  // Design fix 9: a new visitor sees no empty "Your runs" section and no Refresh button.
+  await expect(page.getByRole('heading', { name: 'Your runs' })).toHaveCount(0);
+  await expect(page.getByTestId('button-refresh-runs')).toHaveCount(0);
+  await expect(page.getByTestId('status-capacity')).toContainText('runs per day');
+  // Design fix 7: 4 rows, each with a trap and its honest control.
+  const rows = page.locator('[data-testid^="row-family-"]');
+  await expect(rows).toHaveCount(4);
+  for (let i = 0; i < 4; i++) await expect(rows.nth(i).locator('[data-testid^="button-scenario-"]')).toHaveCount(2);
+  await expect(page.locator('[data-testid^="button-filter-"]')).toHaveCount(0);
+  // Design fix 1: setup is folded and comes after the scenarios.
+  const setup = page.getByTestId('details-home-setup');
+  await expect(setup).not.toHaveAttribute('open', '');
+  const tableTop = (await page.getByTestId('table-scenario-pairs').boundingBox())!.y;
+  expect(tableTop).toBeLessThan((await setup.boundingBox())!.y);
+  await setup.locator(':scope > summary').click();
+  await expect(page.getByTestId('text-claude-mcp-command')).toBeVisible();
   await page.getByTestId('disclosure-usage-analytics').locator(':scope > summary').click();
   expect(unexpected(consoleErrors)).toEqual([]);
   // Cloud Botanist credit removed 2026-11-13 (Masha); the site points only to chargebackos.dev.
@@ -138,7 +150,8 @@ test('example page: both scripted agents, story, checks and technical view', asy
   await expect(page.getByTestId('text-example-disclaimer')).toBeVisible();
   for (const example of examples.examples) {
     await page.getByTestId(`button-example-${example.key}`).click();
-    await expect(page.getByTestId(`button-example-${example.key}`)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId(`button-example-${example.key}`)).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId(`button-example-${example.key}`)).toHaveAttribute('role', 'tab');
     const panel = page.getByTestId(`panel-example-${example.run.id}`);
     await expect(panel).toBeVisible();
     await expect(panel.locator('[data-testid^="story-line-"]').first()).toBeVisible();
@@ -146,6 +159,10 @@ test('example page: both scripted agents, story, checks and technical view', asy
       await expect(panel.getByTestId(`example-check-${check.id}`)).toBeVisible();
     }
   }
+  // Design fix 8: both verdicts sit above the video.
+  for (const example of examples.examples) await expect(page.getByTestId(`verdict-summary-${example.key}`)).toBeVisible();
+  const verdicts = (await page.getByTestId('panel-example-verdicts').boundingBox())!;
+  expect(verdicts.y + verdicts.height).toBeLessThanOrEqual((await page.getByTestId('figure-example-video').boundingBox())!.y + 1);
   await page.getByTestId('details-example-task').locator(':scope > summary').click();
   await expect(page.getByTestId('details-example-task')).toContainText(examples.task);
   await page.getByTestId('details-example-events').locator(':scope > summary').click();
@@ -316,6 +333,46 @@ test('design fixes: 44px buttons, readable disclosure labels, body-font eyebrows
   }
 });
 
+test('design fixes 1, 2, 7, 8: layout at desktop and phone width', async ({ page }) => {
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+    // Home: scenario pairs fit the screen; on phone each pair is a stacked card.
+    await page.goto('/');
+    const table = page.getByTestId('table-scenario-pairs');
+    const tb = (await table.boundingBox())!;
+    expect(tb.x + tb.width).toBeLessThanOrEqual(size.width);
+    const btn = (await page.getByTestId('button-scenario-non_delivery').boundingBox())!;
+    expect(btn.width).toBeGreaterThan(60);
+    expect(btn.height).toBeGreaterThanOrEqual(20);
+    const trap = (await page.getByTestId('button-scenario-non_delivery').boundingBox())!;
+    const control = (await page.getByTestId('button-scenario-late_delivery').boundingBox())!;
+    if (size.width < 640) expect(control.y).toBeGreaterThan(trap.y + trap.height);        // stacked
+    else expect(Math.abs(control.y - trap.y)).toBeLessThan(40);                          // side by side
+    // On phone the scenarios start within about two screens, not four.
+    if (size.width < 640) expect(tb.y).toBeLessThan(2 * size.height);
+    await noOverflow();
+    // Guide: no duplicated sign-in paragraph, no boxes inside boxes, protocol notes folded on phone.
+    await page.goto('/guide');
+    await expect(page.getByText('contains no run ID', { exact: false })).toHaveCount(1);
+    const nested = await page.locator('#mcp-quick-start [data-testid="panel-stable-mcp"]').evaluate(e => getComputedStyle(e).borderLeftWidth);
+    expect(nested).toBe('0px');
+    const protocolOpen = await page.getByTestId('details-protocol-notes').evaluate(e => (e as HTMLDetailsElement).open);
+    expect(protocolOpen).toBe(size.width >= 768);
+    await expect(page.getByRole('heading', { name: 'Protocol notes' })).toBeVisible();
+    await noOverflow();
+    // Example: verdicts above the video, tabs at least 44px tall.
+    await page.goto('/example');
+    const v = (await page.getByTestId('panel-example-verdicts').boundingBox())!;
+    expect(v.y).toBeLessThan((await page.getByTestId('figure-example-video').boundingBox())!.y);
+    expect(v.x + v.width).toBeLessThanOrEqual(size.width);
+    for (const h of await page.locator('[role="tab"]').evaluateAll(els => els.map(e => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(43.5);
+    if (size.width < 768) expect((await page.getByTestId('video-example-timeline').boundingBox())!.height).toBeLessThanOrEqual(size.height * 0.6 + 1);
+    await noOverflow();
+  }
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
 test('no Google Fonts requests; fonts come from our own address (LEG-3)', async ({ page }) => {
   const external: string[] = [];
   const fonts: string[] = [];
@@ -356,6 +413,9 @@ test('guide page shows the live operator task and setup sections', async ({ page
 test('full run: create in the browser, agent acts over HTTP, result is scored, run is deleted', async ({ page }) => {
   const { id, token } = await createRun(page, 'refund_trap');
   await expect(page.getByTestId('text-task')).toBeVisible();
+  // Design fix 10: the task is body size and sits above the Advanced section.
+  expect(await page.getByTestId('text-task').evaluate(e => parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(16);
+  expect((await page.getByTestId('panel-task').boundingBox())!.y).toBeLessThan((await page.getByTestId('details-run-advanced').boundingBox())!.y);
   await expect(page.getByTestId('panel-agent-handoff')).toBeVisible();
   await expect(page.getByTestId('text-mcp-url')).toContainText(`/api/sandbox/agent/${id}/mcp`);
   const codes = await drive(page.request, id, token, CAREFUL);
@@ -363,6 +423,8 @@ test('full run: create in the browser, agent acts over HTTP, result is scored, r
   expect(failedChecks('refund_trap/careful')).toBe(0);
   await page.reload();
   await expect(page.getByTestId('badge-result')).toHaveText('No failed checks');
+  // Finished run leads with the result.
+  expect((await page.getByTestId('panel-result-summary').boundingBox())!.y).toBeLessThan((await page.getByTestId('panel-task').boundingBox())!.y);
   await expect(page.getByTestId('status-score')).toHaveText('Task outcome reached · No failed checks recorded');
   for (let n = 1; n <= CAREFUL.length; n++) await expect(page.getByTestId(`event-${n}`)).toBeVisible();
   for (const check of ['payment', 'authority', 'duplicates', 'delivery', 'refund', 'claim']) {
