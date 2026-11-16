@@ -1,2 +1,10 @@
 User-agent: *
 Allow: /
+# Private or non-public areas: run pages belong to one browser session, the rest is API.
+Disallow: /runs/
+Disallow: /api/
+Disallow: /office
+Disallow: /disputes
+Disallow: /settings
+
+Sitemap: https://chargebackos.dev/sitemap.xml

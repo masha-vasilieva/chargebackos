@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 .sandbox {
   --sb-paper: #f4f1e6;
@@ -261,3 +260,17 @@ button.sb-scenario { display:inline; border:0; background:none; padding:0; color
 .sb-brand-mark { display:block; width:24px; height:24px; border:1px solid #d5d9dc; border-radius:5px; }
 /* The logo image moved the brand's baseline; centre header items so brand and nav line up. */
 .sb-header { align-items:center; }
+/* Privacy Policy page */
+.sb-privacy { max-width:700px; }
+.sb-privacy ul { padding-left:24px; list-style:disc; }
+.sb-table-wrap { overflow-x:auto; }
+.sb-table { border-collapse:collapse; margin:16px 0; font-size:15px; }
+.sb-table th,.sb-table td { border:1px solid #999; padding:6px 8px; text-align:left; vertical-align:top; }
+.sb-privacy h2[id] { scroll-margin-top:20px; }
+/* Blog */
+.sb-blog,.sb-blog-post { max-width:700px; }
+.sb-blog-list { padding-left:24px; list-style:disc; }
+.sb-blog-list li { margin:14px 0; }
+.sb-blog-post ol,.sb-blog-post ul { padding-left:28px; }
+.sb-blog-post h2 { scroll-margin-top:20px; }
+.sb-blog-post a,.sb-blog-post code { overflow-wrap:anywhere; }

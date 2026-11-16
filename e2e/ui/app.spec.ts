@@ -108,8 +108,11 @@ test('brand icon: header shows the logo and the page links the same favicon', as
   await page.goto('/');
   const mark = page.getByTestId('img-brand-mark');
   await expect(mark).toBeVisible();
-  const loaded = await mark.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
-  expect(loaded).toBe(true);
+  // Wait for the image to finish loading (visible does not mean loaded), then require real pixels.
+  await expect.poll(
+    () => mark.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0),
+    { timeout: 10000 },
+  ).toBe(true);
   await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg');
   await expect(page.getByTestId('link-sandbox-brand')).toContainText('Chargeback OS');
   expect(unexpected(consoleErrors)).toEqual([]);
@@ -149,6 +152,123 @@ test('example page: both scripted agents, story, checks and technical view', asy
   await page.getByTestId('link-example-start').click();
   await expect(page).toHaveURL(/\/$/);
   expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('search files: robots.txt points to a valid sitemap of the public pages', async ({ request }) => {
+  const robots = await request.get('/robots.txt');
+  expect(robots.status()).toBe(200);
+  expect(robots.headers()['content-type']).toContain('text/plain');
+  const robotsText = await robots.text();
+  expect(robotsText).toContain('Sitemap: https://chargebackos.dev/sitemap.xml');
+  for (const path of ['/runs/', '/api/']) expect(robotsText).toContain(`Disallow: ${path}`);
+  const sitemap = await request.get('/sitemap.xml');
+  expect(sitemap.status()).toBe(200);
+  expect(sitemap.headers()['content-type']).toContain('xml');
+  const xml = await sitemap.text();
+  expect(xml).toContain('<urlset');
+  for (const page of ['/', '/example', '/guide', '/privacy', '/blog']) expect(xml).toContain(`<loc>https://chargebackos.dev${page}</loc>`);
+  expect(xml).not.toContain('/runs/');
+});
+
+test('privacy policy page: 10 sections, tables fit the screen, linked from footer and the research checkbox (LEG-3)', async ({ page, context }) => {
+  await page.goto('/');
+  const footerLink = page.getByTestId('link-footer-privacy-policy');
+  await expect(footerLink).toBeVisible();
+  expect((await footerLink.boundingBox())!.width).toBeGreaterThan(40);
+  await footerLink.click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Privacy Policy' })).toBeVisible();
+  await expect(page.getByTestId('page-privacy').getByRole('heading', { level: 2 })).toHaveCount(10);
+  await expect(page.getByTestId('page-privacy')).toContainText('hello@chargebackos.dev');
+  await expect(page.getByTestId('page-privacy').locator('table')).not.toHaveCount(0);
+  const content = (await page.getByTestId('page-privacy').boundingBox())!;
+  expect(content.width).toBeLessThanOrEqual(720);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  // The "What's shared?" link at the research checkbox opens the research section.
+  await page.goto('/');
+  await page.getByTestId('button-scenario-non_delivery').click();
+  const shared = page.getByTestId('link-research-whats-shared');
+  await expect(shared).toBeVisible();
+  expect(await shared.getAttribute('href')).toBe('/privacy#3-research-contributions-optional');
+  const [popup] = await Promise.all([context.waitForEvent('page'), shared.click()]);
+  await expect(popup.locator('[id="3-research-contributions-optional"]')).toBeVisible();
+  await popup.close();
+  await page.goto('/guide');
+  await expect(page.getByTestId('link-guide-privacy-policy')).toBeVisible();
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('blog: index lists posts, post page reads well, nav and back links work', async ({ page, request }) => {
+  await page.goto('/');
+  const nav = page.getByTestId('link-blog');
+  await expect(nav).toBeVisible();
+  expect((await nav.boundingBox())!.width).toBeGreaterThan(20);
+  await nav.click();
+  await expect(page).toHaveURL(/\/blog$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Blog' })).toBeVisible();
+  const slug = 'refund-sent-screenshot-dispute-clock';
+  const item = page.getByTestId(`blog-item-${slug}`);
+  await expect(item).toBeVisible();
+  await expect(item.locator('time')).toHaveText(/^\d{4}-\d{2}-\d{2}$/);
+  await page.getByTestId(`link-blog-${slug}`).click();
+  await expect(page).toHaveURL(new RegExp(`/blog/${slug}$`));
+  const article = page.getByTestId('page-blog-post');
+  await expect(article.getByRole('heading', { level: 1 })).toContainText('refund sent');
+  await expect(article.getByRole('heading', { level: 2 })).not.toHaveCount(0);
+  await expect(article.locator('ol li')).toHaveCount(5);
+  await expect(article.locator('a[href="https://chargebackos.dev/example"]')).toBeVisible();
+  await expect(page).toHaveTitle(/refund sent.*Chargeback OS/i);
+  const box = (await article.boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(720);
+  expect(box.width).toBeGreaterThan(300);
+  await page.getByTestId('link-blog-back').click();
+  await expect(page).toHaveURL(/\/blog$/);
+  const missing = await request.get('/blog/no-such-post');
+  expect(missing.status()).toBe(200); // single-page app: the page itself shows "not found"
+  await page.goto('/blog/no-such-post');
+  await expect(page.getByRole('heading', { name: '404 Page Not Found' })).toBeVisible();
+  await expect(page.getByTestId('page-blog-post')).toHaveCount(0);
+  expect(unexpected(consoleErrors)).toEqual([]);
+});
+
+test('footer credit: "Made by" with a LinkedIn link on every page, readable at desktop and phone width', async ({ page }) => {
+  for (const size of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    await page.setViewportSize(size);
+    for (const path of ['/', '/guide', '/blog']) {
+      await page.goto(path);
+      const credit = page.getByTestId('text-footer-credit');
+      await expect(credit).toContainText('Made by Masha Vasilieva');
+      const link = page.getByTestId('link-footer-linkedin');
+      await expect(link).toHaveAttribute('href', 'https://www.linkedin.com/in/mashavsl');
+      await expect(link).toHaveAttribute('rel', /noopener/);
+      const box = (await link.boundingBox())!;
+      expect(box.width).toBeGreaterThan(30);
+      expect(box.x + box.width).toBeLessThanOrEqual(size.width);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(1);
+    }
+  }
+});
+
+test('no Google Fonts requests; fonts come from our own address (LEG-3)', async ({ page }) => {
+  const external: string[] = [];
+  const fonts: string[] = [];
+  page.on('request', r => {
+    const u = new URL(r.url());
+    if (/fonts\.googleapis\.com|fonts\.gstatic\.com/.test(u.host)) external.push(r.url());
+    if (/\.woff2?$/.test(u.pathname)) fonts.push(u.origin);
+  });
+  for (const path of ['/', '/guide', '/privacy']) { await page.goto(path); await page.waitForLoadState('networkidle'); }
+  expect(external).toEqual([]);
+  const own = new URL(page.url()).origin;
+  expect(fonts.length).toBeGreaterThan(0);
+  for (const o of fonts) expect(o).toBe(own);
+  for (const name of ['dm-sans', 'space-grotesk', 'space-mono', 'bricolage-grotesque']) {
+    const res = await page.request.get(`/fonts/licenses/${name}-OFL.txt`);
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain('SIL Open Font License');
+  }
 });
 
 test('guide page shows the live operator task and setup sections', async ({ page, request }) => {
@@ -208,7 +328,10 @@ test('unsafe agent: blocked actions show as failed checks', async ({ page }) => 
 test('run controls: rotate credential, then revoke', async ({ page }) => {
   const { id, token } = await createRun(page, 'non_delivery');
   await page.getByTestId('button-rotate-token').click();
+  // Wait for the server's rotate response itself, not only for the page text to change.
+  const rotateResponse = page.waitForResponse(r => /\/runs\/[^/]+\/token$/.test(new URL(r.url()).pathname) && r.request().method() === 'POST');
   await page.getByTestId('button-confirm-control').click();
+  expect((await rotateResponse).status()).toBe(200);
   await expect(page.getByTestId('text-agent-token')).not.toHaveText(token);
   const rotated = (await page.getByTestId('text-agent-token').textContent())!.trim();
   const act = (t: string, key: string) => page.request.post(`/api/sandbox/agent/${id}/actions`,
@@ -237,7 +360,7 @@ test('legacy office page fails gracefully while its API is switched off', async 
 
 test.describe('phone-size screen', () => {
   test.use({ viewport: { width: 375, height: 812 } });
-  for (const path of ['/', '/example', '/guide']) {
+  for (const path of ['/', '/example', '/guide', '/privacy', '/blog', '/blog/refund-sent-screenshot-dispute-clock']) {
     test(`no sideways scrolling on ${path}`, async ({ page }) => {
       await page.goto(path);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
