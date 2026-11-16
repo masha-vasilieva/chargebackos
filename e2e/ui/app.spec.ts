@@ -95,7 +95,7 @@ test('home page: hero, primary action, scenarios and filters', async ({ page }) 
   expect(unexpected(consoleErrors)).toEqual([]);
   // Cloud Botanist credit removed 2026-11-13 (Masha); the site points only to chargebackos.dev.
   await expect(page.getByTestId('link-made-by')).toHaveCount(0);
-  await expect(page.locator('a[href*="cloudbotanist.ai"]:not([href^="mailto:"])')).toHaveCount(0);
+  await expect(page.locator('a[href*="cloudbotanist"]')).toHaveCount(0);
   // Header: logo, brand name and nav sit on one line (centres within 4px).
   const centre = async (id: string) => { const b = (await page.getByTestId(id).boundingBox())!; return b.y + b.height / 2; };
   const brandY = await centre('link-sandbox-brand');
@@ -155,6 +155,11 @@ test('guide page shows the live operator task and setup sections', async ({ page
   const { task } = await (await request.get('/api/sandbox/scenarios')).json();
   await page.goto('/guide');
   await expect(page.getByTestId('text-guide-task')).toContainText(task);
+  // The feedback address is hello@chargebackos.dev; no link on the guide may use the old domain.
+  await expect(page.locator('a[href*="cloudbotanist"]')).toHaveCount(0);
+  for (const href of await page.locator('a[href^="mailto:"]').evaluateAll(els => els.map(e => e.getAttribute('href') ?? ''))) {
+    expect(href).toMatch(/^mailto:hello@chargebackos\.dev/);
+  }
   for (const name of ['One-time MCP setup', '02 / Operator permissions', '03 / Read outcomes honestly', 'Protocol notes']) {
     await expect(page.getByRole('heading', { name })).toBeVisible();
   }

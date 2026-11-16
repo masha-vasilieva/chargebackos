@@ -6,7 +6,7 @@ import { CATEGORIES, PHASES, REPORT_CLIENTS, formatProblemReport, type ProblemRe
 function Choice({legend,name,options,value,onChange}:{legend:string;name:string;options:readonly string[];value:string;onChange:(v:string)=>void}) {
   return <fieldset style={{border:0,padding:0,margin:0}}><legend style={{fontWeight:600,fontSize:12}}>{legend}</legend><div className="sb-tool-list sb-feedback-choice-list" style={{marginTop:8}}>{options.map(o=><label key={o} className={`sb-btn sb-feedback-choice ${value===o?'selected':''}`} style={{fontFamily:"'Space Mono',monospace",fontSize:10,padding:'6px 10px'}}><input type="radio" name={name} value={o} checked={value===o} onChange={()=>onChange(o)} style={{accentColor:'#2b4b48'}} data-testid={`radio-${name}-${o}`}/>{o}</label>)}</div></fieldset>;
 }
-const FEEDBACK_EMAIL='hello@cloudbotanist.ai';
+const FEEDBACK_EMAIL='hello@chargebackos.dev';
 
 export function ProblemReporter() {
   const scenarios=useScenarios();

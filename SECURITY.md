@@ -7,8 +7,8 @@ still very welcome.
 ## Reporting a vulnerability
 
 - Use GitHub's **private vulnerability reporting** on this repository
-  ("Security" tab, then "Report a vulnerability"). This is the only channel
-  for now; an email address will be added here once it exists.
+  ("Security" tab, then "Report a vulnerability"), or email
+  **hello@chargebackos.dev** with "Security" in the subject.
 - Please don't open a public issue, and don't test against other users' runs.
 - Include the steps to reproduce and what you think the impact is.
 - We aim to reply within 5 working days. This is a one-person project, so
