@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Chargeback OS** · Last updated: 16 November 2026 · Version 1.0
+**Chargeback OS** · Last updated: 19 November 2026 · Version 1.1
 
 Chargeback OS is a sandbox that tests how AI purchasing agents behave when a seller lies. It uses synthetic money only. We keep personal data to a minimum: there are no accounts, and we never ask for your name, email or payment details to use it.
 
@@ -62,6 +62,7 @@ These providers process data on our behalf:
 | Cloudflare, Inc. | Domain name service and email forwarding (below) |
 | Anthropic, PBC | Writes the run explanation, only when you ask. Receives the scenario, tool names, result codes and check results: no IDs, labels or free text |
 | PayPal | Only for runs that use PayPal **sandbox** mode: test payments and refunds with sandbox money. Receives the run ID as a reference, nothing about you |
+| Functional Software, Inc. (Sentry) | Error reports: when our server crashes or returns a server error, Sentry receives the error type and where in our code it happened, so we can fix it. We configure it to send no request contents, headers, cookies, IP addresses, user IDs or error messages. Stored in the EU (Frankfurt) |
 | Cloudflare, Inc. (Email Routing) and Google LLC (Gmail) | Cloudflare forwards emails sent to hello@chargebackos.dev to our Gmail mailbox, where Google stores them |
 
 Some of these providers are based in the United States. Where data is transferred outside the EU/EEA, we rely on the EU–US Data Privacy Framework (where the provider is certified) or the European Commission's Standard Contractual Clauses.
@@ -77,6 +78,7 @@ Some of these providers are based in the United States. Where data is transferre
 | Hashed-IP rate-limit counters | Up to 24 hours |
 | Usage totals without identifiers | Up to 90 days; research opt-in totals up to 24 months |
 | Server logs | Up to 30 days, as set by our hosting provider |
+| Error reports (type and code location only) | Up to 90 days |
 | Emails | Up to 12 months after the conversation ends |
 
 Deleting a run removes it from our live database immediately. A copy may remain in our hosting provider's backups for up to 7 days, after which it is overwritten; we cannot delete from those backups earlier.

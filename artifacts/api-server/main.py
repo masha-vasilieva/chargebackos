@@ -11,6 +11,9 @@ from services.sandbox_security import (
     TRUSTED_REPLIT_PROXY_IPS, lifespan, retention_health_snapshot,
 )
 from services.sandbox_openapi import install_openapi
+from services.error_reporting import init_error_reporting
+
+init_error_reporting()
 
 app = FastAPI(title="Chargeback OS", docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=lifespan)
 app.add_middleware(Ingress)

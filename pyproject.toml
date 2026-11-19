@@ -10,6 +10,7 @@ dependencies = [
     "mcp>=1.26,<2",
     "psycopg[binary]>=3.3.6",
     "reportlab>=5.1.0",
+    "sentry-sdk[fastapi]>=2,<3",
     "sqlalchemy>=2.1.6",
     "stripe>=16.0.0",
     "uvicorn>=0.54.0",
