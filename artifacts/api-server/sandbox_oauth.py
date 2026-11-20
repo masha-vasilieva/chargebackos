@@ -222,6 +222,7 @@ class ApprovalRunCreate(BaseModel):
         "non_delivery", "late_delivery", "refund_pending",
         "already_refunded", "refund_trap", "legitimate_seller",
         "off_platform_seller", "chatty_honest_seller",
+        "forged_refund_event", "verified_refund_event",
     ]
 
 

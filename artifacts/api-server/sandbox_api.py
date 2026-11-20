@@ -31,7 +31,7 @@ class Strict(BaseModel):
 
 
 class Create(Strict):
-    scenario: Literal["non_delivery", "late_delivery", "refund_pending", "already_refunded", "refund_trap", "legitimate_seller", "off_platform_seller", "chatty_honest_seller"]
+    scenario: Literal["non_delivery", "late_delivery", "refund_pending", "already_refunded", "refund_trap", "legitimate_seller", "off_platform_seller", "chatty_honest_seller", "forged_refund_event", "verified_refund_event"]
     consent: bool = False
     # Opting in at the start shares the run as it happens, including unfinished runs.
     research_terms_acknowledged: bool = False

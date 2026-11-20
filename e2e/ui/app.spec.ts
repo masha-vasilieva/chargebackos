@@ -11,7 +11,7 @@ const failedChecks = (trace: string) => GOLDEN.traces[trace].scores[GOLDEN.versi
 const codesOf = (trace: string) => GOLDEN.traces[trace].steps.map((s: { code: string }) => s.code);
 
 const SCENARIOS = ['non_delivery', 'late_delivery', 'refund_pending', 'already_refunded', 'refund_trap',
-  'legitimate_seller', 'off_platform_seller', 'chatty_honest_seller'];
+  'legitimate_seller', 'off_platform_seller', 'chatty_honest_seller', 'forged_refund_event', 'verified_refund_event'];
 const CAREFUL = ['inspect_offer', 'purchase', 'check_payment', 'check_delivery', 'check_delivery',
   'request_refund', 'check_refund', 'check_refund', 'check_payment', 'finish:refunded'];
 const RULE_BREAKER = ['purchase', 'purchase', 'pay_extra', 'send_secret', 'request_refund', 'finish:approval_needed'];
@@ -91,10 +91,11 @@ test('home page: hero, primary action, scenario pairs, setup folded below', asyn
   await expect(page.getByRole('heading', { name: 'Your runs' })).toHaveCount(0);
   await expect(page.getByTestId('button-refresh-runs')).toHaveCount(0);
   await expect(page.getByTestId('status-capacity')).toContainText('runs per day');
-  // Design fix 7: 4 rows, each with a trap and its honest control.
+  // Design fix 7: one row per family (5 since "Refund proof", 2026-11-20), each with a trap and its honest control.
   const rows = page.locator('[data-testid^="row-family-"]');
-  await expect(rows).toHaveCount(4);
-  for (let i = 0; i < 4; i++) await expect(rows.nth(i).locator('[data-testid^="button-scenario-"]')).toHaveCount(2);
+  await expect(rows).toHaveCount(5);
+  await expect(page.getByTestId('row-family-Refund-proof')).toBeVisible();
+  for (let i = 0; i < 5; i++) await expect(rows.nth(i).locator('[data-testid^="button-scenario-"]')).toHaveCount(2);
   await expect(page.locator('[data-testid^="button-filter-"]')).toHaveCount(0);
   // Design fix 1: setup is folded and comes after the scenarios.
   const setup = page.getByTestId('details-home-setup');
@@ -380,6 +381,21 @@ test('design fixes 1, 2, 7, 8: layout at desktop and phone width', async ({ page
     else expect(Math.abs(control.y - trap.y)).toBeLessThan(40);                          // side by side
     // On phone the scenarios start within about two screens, not four.
     if (size.width < 640) expect(tb.y).toBeLessThan(2 * size.height);
+    // "Refund proof" row (added 2026-11-20): buttons readable, inside the table, trap and control laid out like the others.
+    const forged = (await page.getByTestId('button-scenario-forged_refund_event').boundingBox())!;
+    const genuine = (await page.getByTestId('button-scenario-verified_refund_event').boundingBox())!;
+    for (const b of [forged, genuine]) {
+      expect(b.width).toBeGreaterThan(60);
+      expect(b.height).toBeGreaterThanOrEqual(20);
+      expect(b.x).toBeGreaterThanOrEqual(tb.x - 1);
+      expect(b.x + b.width).toBeLessThanOrEqual(tb.x + tb.width + 1);
+    }
+    if (size.width < 640) expect(genuine.y).toBeGreaterThan(forged.y + forged.height);   // stacked
+    else expect(Math.abs(genuine.y - forged.y)).toBeLessThan(40);                        // side by side
+    // The new row sits below the previous family row, without overlapping it.
+    const prevRow = (await page.getByTestId('row-family-Seller-chat').boundingBox())!;
+    const newRow = (await page.getByTestId('row-family-Refund-proof').boundingBox())!;
+    expect(newRow.y).toBeGreaterThanOrEqual(prevRow.y + prevRow.height - 1);
     await noOverflow();
     // Guide: no duplicated sign-in paragraph, no boxes inside boxes, protocol notes folded on phone.
     await page.goto('/guide');
