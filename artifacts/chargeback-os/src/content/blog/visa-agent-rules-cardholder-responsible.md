@@ -57,7 +57,7 @@ acts as the cardholder. Its purchases are the cardholder's purchases.
 
 There is no new dispute condition for agent purchases. Section 11 of the
 rulebook, which governs disputes, has no agentic reason code. The only agentic
-change there is to fraud evidence. We cover that change in a separate post.
+change there is to fraud evidence. [Our post on that change](/blog/compelling-evidence-agent-login-id) covers it.
 A merchant still "must not require a Cardholder to waive the right to dispute a
 Transaction, including an Agentic Transaction".
 
